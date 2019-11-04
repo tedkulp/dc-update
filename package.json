@@ -10,9 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "bluebird": "^3.7.1",
-    "clui": "^0.3.6",
     "docker-compose": "^0.23.1",
     "dockerode": "^3.0.2",
-    "lodash": "^4.17.15"
+    "lodash": "^4.17.15",
+    "ora": "^4.0.2"
   }
 }

@@ -2,7 +2,7 @@ const compose = require('docker-compose');
 const path = require('path');
 const Promise = require('bluebird');
 const _ = require('lodash');
-const Spinner = require('clui').Spinner;
+const ora = require('ora');
 const Docker = require('dockerode');
 
 const docker = new Docker();
@@ -68,13 +68,11 @@ const getCurrentImageId = async containerObj => {
 };
 
 const updateContainer = async containerName => {
-  const spinner = new Spinner(`Updating ${containerName}`);
-  spinner.start();
+  const spinner = ora(`Updating ${containerName}`).start();
 
   const currentContainerId = await getCurrentContainerId(containerName);
   if (!currentContainerId) {
-    spinner.stop();
-    console.log(`${containerName} is not running`);
+    spinner.warn(`${containerName} is not running`);
     return;
   }
 
@@ -83,12 +81,10 @@ const updateContainer = async containerName => {
   const latestImageId = await getLatestImageId(containerName, currentContainer);
 
   if (latestImageId && currentImageId !== latestImageId) {
-    spinner.message(`Updating and restarting ${containerName}`);
-    spinner.stop(); // Stop this after it's updated....
-    console.log(`Updated ${containerName}`);
+    spinner.text = `Updating and restarting ${containerName}`;
+    spinner.succeed(`Updated ${containerName}`);
   } else {
-    spinner.stop();
-    console.log(`${containerName} is up to date`);
+    spinner.succeed(`${containerName} is now up to date`);
   }
 };
 
