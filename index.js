@@ -2,6 +2,7 @@ const compose = require('docker-compose');
 const path = require('path');
 const Promise = require('bluebird');
 const _ = require('lodash');
+const Spinner = require('clui').Spinner;
 const Docker = require('dockerode');
 
 const docker = new Docker();
@@ -30,7 +31,6 @@ const getCurrentContainerId = async containerName => {
 };
 
 const getLatestImageId = async (containerName, containerObj) => {
-  console.log('Pulling', containerName);
   await compose.pullOne(containerName, {
     ...dockerComposeOptions,
     commandOptions: ['-q'],
@@ -68,23 +68,27 @@ const getCurrentImageId = async containerObj => {
 };
 
 const updateContainer = async containerName => {
-  // console.log('->', containerName);
+  const spinner = new Spinner(`Updating ${containerName}`);
+  spinner.start();
+
   const currentContainerId = await getCurrentContainerId(containerName);
-  // console.log('====>', currentContainerId);
   if (!currentContainerId) {
-    console.log(containerName, 'not running');
+    spinner.stop();
+    console.log(`${containerName} is not running`);
     return;
   }
 
   const currentContainer = docker.getContainer(currentContainerId);
   const currentImageId = await getCurrentImageId(currentContainer);
-  // console.log('++++++>', currentImageId);
   const latestImageId = await getLatestImageId(containerName, currentContainer);
 
   if (latestImageId && currentImageId !== latestImageId) {
-    console.log('Updating:', containerName);
+    spinner.message(`Updating and restarting ${containerName}`);
+    spinner.stop(); // Stop this after it's updated....
+    console.log(`Updated ${containerName}`);
   } else {
-    console.log(containerName, 'is up to date');
+    spinner.stop();
+    console.log(`${containerName} is up to date`);
   }
 };
 
