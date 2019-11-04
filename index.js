@@ -67,6 +67,15 @@ const getCurrentImageId = async containerObj => {
   });
 };
 
+const restartContainer = async containerName => {
+  await compose.stopOne(containerName, dockerComposeOptions);
+  await compose.rm({
+    ...dockerComposeOptions,
+    commandOptions: [containerName],
+  });
+  return compose.upOne(containerName, dockerComposeOptions);
+};
+
 const updateContainer = async containerName => {
   const spinner = ora(`Updating ${containerName}`).start();
 
@@ -82,9 +91,12 @@ const updateContainer = async containerName => {
 
   if (latestImageId && currentImageId !== latestImageId) {
     spinner.text = `Updating and restarting ${containerName}`;
+    await restartContainer(containerName).catch(err => {
+      spinner.fail(`Failed to restart ${containerName} -- ${err}`);
+    });
     spinner.succeed(`Updated ${containerName}`);
   } else {
-    spinner.succeed(`${containerName} is now up to date`);
+    spinner.succeed(`${containerName} is already up to date`);
   }
 };
 
