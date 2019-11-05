@@ -6,13 +6,17 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "bin": {
+    "dc-update": "./bin/dc-update"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bluebird": "^3.7.1",
-    "docker-compose": "^0.23.1",
+    "docker-compose": "tedkulp/docker-compose",
     "dockerode": "^3.0.2",
     "lodash": "^4.17.15",
+    "meow": "^5.0.0",
     "ora": "^4.0.2"
   }
 }

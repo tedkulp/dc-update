@@ -4,10 +4,30 @@ const Promise = require('bluebird');
 const _ = require('lodash');
 const ora = require('ora');
 const Docker = require('dockerode');
+const meow = require('meow');
 
 const docker = new Docker();
 
-const pathToDockerComposeFile = path.join(__dirname, '..');
+const cli = meow(`
+Usage
+  $ dc-update [CONTAINER_NAME]...
+
+Options
+  --file, -f  Path to docker-compose.yml file
+
+Examples
+  $ dc-update influxdb grafana elasticsearch
+    ...
+`, {
+  flags: {
+    file: {
+      type: 'string',
+      alias: 'f',
+    },
+  },
+});
+
+const pathToDockerComposeFile = path.dirname(cli.flags.file) || process.cwd();
 const dockerComposeOptions = {
   cwd: pathToDockerComposeFile,
   log: false,
@@ -69,10 +89,7 @@ const getCurrentImageId = async containerObj => {
 
 const restartContainer = async containerName => {
   await compose.stopOne(containerName, dockerComposeOptions);
-  await compose.rm({
-    ...dockerComposeOptions,
-    commandOptions: [containerName],
-  });
+  await compose.rmOne(containerName, dockerComposeOptions);
   return compose.upOne(containerName, dockerComposeOptions);
 };
 
@@ -90,9 +107,11 @@ const updateContainer = async containerName => {
   const latestImageId = await getLatestImageId(containerName, currentContainer);
 
   if (latestImageId && currentImageId !== latestImageId) {
+    // if (latestImageId && currentImageId === latestImageId) {
     spinner.text = `Updating and restarting ${containerName}`;
     await restartContainer(containerName).catch(err => {
-      spinner.fail(`Failed to restart ${containerName} -- ${err}`);
+      spinner.fail(`Failed to restart ${containerName}`);
+      console.error(err);
     });
     spinner.succeed(`Updated ${containerName}`);
   } else {
@@ -101,7 +120,11 @@ const updateContainer = async containerName => {
 };
 
 (async () => {
-  const serviceNames = await getServiceNames();
+  let serviceNames = cli.input;
+  if (serviceNames.length === 0) {
+    serviceNames = await getServiceNames();
+  }
+
   Promise.mapSeries(serviceNames, async service => {
     await updateContainer(service);
   });
