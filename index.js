@@ -13,21 +13,31 @@ Usage
   $ dc-update [CONTAINER_NAME]...
 
 Options
+  --build, -b container_name
+              Container to build before updating. Can be called multiple times
   --file, -f  Path to docker-compose.yml file
+  --show-warnings
+              Show warnings for containers that aren't running (default: false)
 
 Examples
   $ dc-update influxdb grafana elasticsearch
-    ...
 `, {
   flags: {
     file: {
       type: 'string',
       alias: 'f',
     },
+    build: {
+      type: 'string',
+      alias: 'b',
+    },
+    'show-warnings': {
+      type: 'boolean',
+    },
   },
 });
 
-const pathToDockerComposeFile = path.dirname(cli.flags.file) || process.cwd();
+const pathToDockerComposeFile = cli.flags.file ? path.dirname(cli.flags.file) : process.cwd();
 const dockerComposeOptions = {
   cwd: pathToDockerComposeFile,
   log: false,
@@ -93,12 +103,20 @@ const restartContainer = async containerName => {
   return compose.upOne(containerName, dockerComposeOptions);
 };
 
+const warnIfEnabled = (spinner, message) => {
+  if (cli.flags['show-warning']) {
+    spinner.warn(message);
+  } else {
+    spinner.stop()
+  }
+}
+
 const updateContainer = async containerName => {
   const spinner = ora(`Updating ${containerName}`).start();
 
   const currentContainerId = await getCurrentContainerId(containerName);
   if (!currentContainerId) {
-    spinner.warn(`${containerName} is not running`);
+    warnIfEnabled(spinner, `${containerName} is not running`);
     return;
   }
 
@@ -119,10 +137,24 @@ const updateContainer = async containerName => {
   }
 };
 
+const buildContainers = async containerNames => {
+  const spinner = ora(`Building containers`).start();
+  await compose.buildMany(containerNames, {
+    ...dockerComposeOptions,
+    commandOptions: ['--pull'],
+  });
+  spinner.succeed(`Done building`);
+};
+
 (async () => {
   let serviceNames = cli.input;
   if (serviceNames.length === 0) {
     serviceNames = await getServiceNames();
+  }
+
+  if (cli.flags.build) {
+    const containersToBuild = _.isArray(cli.flags.build) ? cli.flags.build : [cli.flags.build];
+    await buildContainers(containersToBuild);
   }
 
   Promise.mapSeries(serviceNames, async service => {
