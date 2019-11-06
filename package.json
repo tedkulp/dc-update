@@ -1,6 +1,6 @@
 {
   "name": "dc-update",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An opinioned script for updating large docker-compose based systems",
   "main": "index.js",
   "repository": "tedkulp/dc-update",
@@ -8,18 +8,18 @@
     "dc-update": "./bin/dc-update"
   },
   "engines": {
-		"node": ">=8"
+    "node": ">=8"
   },
   "keywords": [
-		"cli",
-		"docker",
-		"docker-compose"
-	],
+    "cli",
+    "docker",
+    "docker-compose"
+  ],
   "author": {
-		"name": "Ted Kulp",
-		"email": "ted@tedkulp.com",
-		"url": "https://tedkulp.com"
-	},
+    "name": "Ted Kulp",
+    "email": "ted@tedkulp.com",
+    "url": "https://tedkulp.com"
+  },
   "license": "MIT",
   "dependencies": {
     "bluebird": "^3.7.1",
