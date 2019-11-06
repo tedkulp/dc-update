@@ -1,5 +1,6 @@
 const compose = require('docker-compose');
 const path = require('path');
+const fs = require('fs');
 const Promise = require('bluebird');
 const _ = require('lodash');
 const ora = require('ora');
@@ -37,9 +38,17 @@ Examples
   },
 });
 
-const pathToDockerComposeFile = cli.flags.file ? path.dirname(cli.flags.file) : process.cwd();
+const pathToDockerComposeFile = cli.flags.file ? path.dirname(path.resolve(cli.flags.file)) : process.cwd();
+const dockerComposeFilename = cli.flags.file ? path.basename(path.resolve(cli.flags.file)) : 'docker-compose.yml';
+
+if (!fs.existsSync(path.join(pathToDockerComposeFile, dockerComposeFilename))) {
+  console.error('docker-compose file does not exist:', path.join(pathToDockerComposeFile, dockerComposeFilename));
+  process.exit(1);
+}
+
 const dockerComposeOptions = {
   cwd: pathToDockerComposeFile,
+  config: dockerComposeFilename,
   log: false,
 };
 
@@ -125,7 +134,6 @@ const updateContainer = async containerName => {
   const latestImageId = await getLatestImageId(containerName, currentContainer);
 
   if (latestImageId && currentImageId !== latestImageId) {
-    // if (latestImageId && currentImageId === latestImageId) {
     spinner.text = `Updating and restarting ${containerName}`;
     await restartContainer(containerName).catch(err => {
       spinner.fail(`Failed to restart ${containerName}`);
