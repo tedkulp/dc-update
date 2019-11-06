@@ -28,5 +28,10 @@
     "lodash": "^4.17.15",
     "meow": "^5.0.0",
     "ora": "^4.0.2"
+  },
+  "release-it": {
+    "github": {
+      "release": true
+    }
   }
 }
