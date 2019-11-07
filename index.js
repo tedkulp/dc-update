@@ -1,4 +1,4 @@
-const compose = require('docker-compose');
+const compose = require('docker-compose-tedkulp');
 const path = require('path');
 const fs = require('fs');
 const Promise = require('bluebird');
