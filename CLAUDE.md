@@ -8,12 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-- **Single-file application**: The main logic is in `index.js` with a simple executable wrapper in `bin/dc-update`
-- **Dependencies**: Uses `docker-compose-tedkulp` (custom fork), `dockerode` for Docker API access, `meow` for CLI parsing, and `ora` for spinners
+### Go Implementation (Current)
+- **Main entry point**: `cmd/dc-update/main.go` - CLI application entry point
+- **Project structure**: Standard Go layout with `cmd/`, `internal/`, and `pkg/` directories
+- **Dependencies**: TBD - Will use Go libraries for Docker API, CLI parsing, and terminal UI
 - **Core workflow**: 
   1. Parse docker-compose file to get service names
   2. For each container: pull latest image, compare image IDs, restart only if different
   3. Optional build step for containers that need building before update
+
+### Node.js Implementation (Legacy)
+- **Single-file application**: The main logic is in `index.js` with a simple executable wrapper in `bin/dc-update`
+- **Dependencies**: Uses `docker-compose-tedkulp` (custom fork), `dockerode` for Docker API access, `meow` for CLI parsing, and `ora` for spinners
 
 ## Key Functions
 
@@ -32,6 +38,14 @@ The tool accepts container names as arguments and supports:
 
 ## Development Commands
 
+### Go Implementation
+- `go mod tidy`: Manage dependencies
+- `go build -o dc-update cmd/dc-update/main.go`: Build binary
+- `go run cmd/dc-update/main.go --help`: Test the CLI locally
+- `go install ./cmd/dc-update`: Install globally for testing
+- `go test ./...`: Run tests (when implemented)
+
+### Node.js Implementation (Legacy)
 This project has no test suite, linting, or build commands configured in package.json. Development is straightforward:
 
 - `npm install`: Install dependencies

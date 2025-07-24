@@ -4,14 +4,14 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 
 ## Project Setup
 
-- [ ] Initialize Go module with `go mod init dc-update`
-- [ ] Create standard Go project structure:
-  - [ ] `cmd/dc-update/main.go` - CLI entry point
-  - [ ] `internal/` - Internal packages
-  - [ ] `pkg/` - Public packages (if needed)
-- [ ] Set up `go.mod` and `go.sum` files
-- [ ] Create `.gitignore` for Go project
-- [ ] Update `CLAUDE.md` with Go-specific instructions
+- [x] Initialize Go module with `go mod init dc-update`
+- [x] Create standard Go project structure:
+  - [x] `cmd/dc-update/main.go` - CLI entry point
+  - [x] `internal/` - Internal packages
+  - [x] `pkg/` - Public packages (if needed)
+- [x] Set up `go.mod` and `go.sum` files
+- [x] Create `.gitignore` for Go project
+- [x] Update `CLAUDE.md` with Go-specific instructions
 
 ## Dependency Research & Selection
 
