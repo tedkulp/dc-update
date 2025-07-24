@@ -43,20 +43,20 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 - [x] Add validation for docker-compose file existence
 
 ### Docker Compose Integration
-- [ ] Implement `getServiceNames()` function
-  - [ ] Execute `docker-compose config --services` command
-  - [ ] Parse output to extract service names
-  - [ ] Handle errors and empty results
-- [ ] Implement `getCurrentContainerId()` function
-  - [ ] Execute `docker-compose ps -q [service_name]` command
-  - [ ] Parse output to get container ID
-  - [ ] Handle non-running containers
-- [ ] Implement container operations:
-  - [ ] `stopContainer()` - Execute `docker-compose stop [service]`
-  - [ ] `removeContainer()` - Execute `docker-compose rm [service]`
-  - [ ] `startContainer()` - Execute `docker-compose up -d [service]`
-  - [ ] `pullContainer()` - Execute `docker-compose pull [service]`
-  - [ ] `buildContainers()` - Execute `docker-compose build --pull [services...]`
+- [x] Implement `getServiceNames()` function
+  - [x] Execute `docker-compose config --services` command
+  - [x] Parse output to extract service names
+  - [x] Handle errors and empty results
+- [x] Implement `getCurrentContainerId()` function
+  - [x] Execute `docker-compose ps -q [service_name]` command
+  - [x] Parse output to get container ID
+  - [x] Handle non-running containers
+- [x] Implement container operations:
+  - [x] `stopContainer()` - Execute `docker-compose stop [service]`
+  - [x] `removeContainer()` - Execute `docker-compose rm [service]`
+  - [x] `startContainer()` - Execute `docker-compose up -d [service]`
+  - [x] `pullContainer()` - Execute `docker-compose pull [service]`
+  - [x] `buildContainers()` - Execute `docker-compose build --pull [services...]`
 
 ### Docker API Integration
 - [ ] Initialize Docker client connection
