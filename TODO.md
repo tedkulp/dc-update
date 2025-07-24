@@ -15,32 +15,32 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 
 ## Dependency Research & Selection
 
-- [ ] Research Go Docker API clients (replace `dockerode`)
-  - [ ] Evaluate `github.com/docker/docker/client`
-  - [ ] Test basic Docker operations (list containers, inspect, etc.)
-- [ ] Research CLI parsing libraries (replace `meow`)
-  - [ ] Evaluate `github.com/spf13/cobra`
-  - [ ] Evaluate `github.com/urfave/cli/v2`
-  - [ ] Choose based on feature compatibility
-- [ ] Research terminal spinner libraries (replace `ora`)
-  - [ ] Evaluate `github.com/briandowns/spinner`
-  - [ ] Evaluate `github.com/schollz/progressbar/v3`
-  - [ ] Test spinner functionality and output formatting
-- [ ] Research docker-compose integration options
-  - [ ] Plan to execute `docker-compose` commands via `os/exec`
-  - [ ] Research YAML parsing for docker-compose.yml files
+- [x] Research Go Docker API clients (replace `dockerode`)
+  - [x] Evaluate `github.com/docker/docker/client`
+  - [x] Test basic Docker operations (list containers, inspect, etc.)
+- [x] Research CLI parsing libraries (replace `meow`)
+  - [x] Evaluate `github.com/spf13/cobra`
+  - [x] Evaluate `github.com/urfave/cli/v2`
+  - [x] Choose based on feature compatibility
+- [x] Research terminal spinner libraries (replace `ora`)
+  - [x] Evaluate `github.com/briandowns/spinner`
+  - [x] Evaluate `github.com/schollz/progressbar/v3`
+  - [x] Test spinner functionality and output formatting
+- [x] Research docker-compose integration options
+  - [x] Plan to execute `docker-compose` commands via `os/exec`
+  - [x] Research YAML parsing for docker-compose.yml files
 
 ## Core Function Implementations
 
 ### CLI Interface
-- [ ] Implement CLI argument parsing with chosen library
-- [ ] Add flag definitions:
-  - [ ] `--file, -f` (string) - Path to docker-compose.yml file
-  - [ ] `--build, -b` (string slice) - Container names to build
-  - [ ] `--show-warnings` (bool) - Show warnings for non-running containers
-- [ ] Handle positional arguments for container names
-- [ ] Implement usage/help text matching original format
-- [ ] Add validation for docker-compose file existence
+- [x] Implement CLI argument parsing with chosen library
+- [x] Add flag definitions:
+  - [x] `--file, -f` (string) - Path to docker-compose.yml file
+  - [x] `--build, -b` (string slice) - Container names to build
+  - [x] `--show-warnings` (bool) - Show warnings for non-running containers
+- [x] Handle positional arguments for container names
+- [x] Implement usage/help text matching original format
+- [x] Add validation for docker-compose file existence
 
 ### Docker Compose Integration
 - [ ] Implement `getServiceNames()` function

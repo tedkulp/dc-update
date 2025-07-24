@@ -11,7 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Go Implementation (Current)
 - **Main entry point**: `cmd/dc-update/main.go` - CLI application entry point
 - **Project structure**: Standard Go layout with `cmd/`, `internal/`, and `pkg/` directories
-- **Dependencies**: TBD - Will use Go libraries for Docker API, CLI parsing, and terminal UI
+- **Dependencies**: 
+  - `github.com/docker/docker/client` for Docker API access
+  - `github.com/urfave/cli/v2` for CLI parsing and flags
+  - `github.com/briandowns/spinner` for terminal spinners  
+  - `os/exec` for docker-compose command execution
+  - `gopkg.in/yaml.v3` for YAML parsing (if needed)
 - **Core workflow**: 
   1. Parse docker-compose file to get service names
   2. For each container: pull latest image, compare image IDs, restart only if different
