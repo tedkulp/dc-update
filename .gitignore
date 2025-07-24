@@ -7,10 +7,6 @@
 *.test
 *.out
 
-# Built binaries
-/dc-update
-/cmd/dc-update/dc-update
-
 # Go workspace file
 go.work
 
