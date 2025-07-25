@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -60,32 +61,64 @@ func (opts *Options) GetCurrentContainerId(serviceName string) (string, error) {
 	return containerID, nil
 }
 
+// ValidateServiceExists checks if a service exists in the docker-compose file
+func (opts *Options) ValidateServiceExists(serviceName string) error {
+	services, err := opts.GetServiceNames()
+	if err != nil {
+		return fmt.Errorf("failed to get service list: %w", err)
+	}
+	
+	for _, service := range services {
+		if service == serviceName {
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("service '%s' does not exist in docker-compose file", serviceName)
+}
+
 // StopContainer executes `docker compose stop [service]`
 func (opts *Options) StopContainer(serviceName string) error {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "stop", serviceName)
 	cmd.Dir = opts.WorkingDir
-	return cmd.Run()
+	
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stop container '%s': %w", serviceName, err)
+	}
+	return nil
 }
 
 // RemoveContainer executes `docker compose rm [service]`
 func (opts *Options) RemoveContainer(serviceName string) error {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "rm", "-f", serviceName)
 	cmd.Dir = opts.WorkingDir
-	return cmd.Run()
+	
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove container '%s': %w", serviceName, err)
+	}
+	return nil
 }
 
 // StartContainer executes `docker compose up -d [service]`
 func (opts *Options) StartContainer(serviceName string) error {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "up", "-d", serviceName)
 	cmd.Dir = opts.WorkingDir
-	return cmd.Run()
+	
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start container '%s': %w", serviceName, err)
+	}
+	return nil
 }
 
 // PullContainer executes `docker compose pull [service]`
 func (opts *Options) PullContainer(serviceName string) error {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "pull", serviceName)
 	cmd.Dir = opts.WorkingDir
-	return cmd.Run()
+	
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to pull image for '%s': %w", serviceName, err)
+	}
+	return nil
 }
 
 // BuildContainers executes `docker compose build --pull [services...]`
@@ -95,7 +128,11 @@ func (opts *Options) BuildContainers(serviceNames []string) error {
 
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = opts.WorkingDir
-	return cmd.Run()
+	
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to build containers %v: %w", serviceNames, err)
+	}
+	return nil
 }
 
 // RestartContainer is a convenience method that stops, removes, and starts a container

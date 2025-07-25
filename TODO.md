@@ -99,22 +99,22 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 - [x] Ensure proper terminal cleanup on exit
 
 ## Main Application Flow
-- [ ] Implement main execution logic
-  - [ ] Parse CLI arguments and flags
-  - [ ] Validate docker-compose file existence
-  - [ ] Determine service names (from args or all services)
-  - [ ] Handle build containers if specified
-  - [ ] Process each container sequentially
-  - [ ] Proper error handling and exit codes
+- [x] Implement main execution logic
+  - [x] Parse CLI arguments and flags
+  - [x] Validate docker-compose file existence
+  - [x] Determine service names (from args or all services)
+  - [x] Handle build containers if specified
+  - [x] Process each container sequentially
+  - [x] Proper error handling and exit codes
 
 ## Error Handling & Edge Cases
-- [ ] Handle missing docker-compose file
-- [ ] Handle docker daemon connectivity issues
-- [ ] Handle non-existent containers/services
-- [ ] Handle docker-compose command failures
-- [ ] Handle Docker API errors
-- [ ] Implement proper exit codes for different error conditions
-- [ ] Add helpful error messages matching original behavior
+- [x] Handle missing docker-compose file
+- [x] Handle docker daemon connectivity issues
+- [x] Handle non-existent containers/services
+- [x] Handle docker-compose command failures
+- [x] Handle Docker API errors
+- [x] Implement proper exit codes for different error conditions
+- [x] Add helpful error messages matching original behavior
 
 ## Testing & Validation
 - [ ] Create test docker-compose.yml for testing

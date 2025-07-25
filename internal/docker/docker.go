@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -18,12 +19,19 @@ type Client struct {
 func NewClient() (*Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to Docker daemon - is Docker running? %w", err)
+	}
+
+	// Test the connection by pinging the daemon
+	ctx := context.Background()
+	_, err = cli.Ping(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Docker daemon is not responding - check Docker daemon status: %w", err)
 	}
 
 	return &Client{
 		cli: cli,
-		ctx: context.Background(),
+		ctx: ctx,
 	}, nil
 }
 
@@ -36,7 +44,10 @@ func (c *Client) Close() error {
 func (c *Client) GetCurrentImageId(containerID string) (string, error) {
 	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
 	if err != nil {
-		return "", err
+		if strings.Contains(err.Error(), "No such container") {
+			return "", fmt.Errorf("container %s does not exist or is not running", containerID)
+		}
+		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 
 	// Extract image ID and remove 'sha256:' prefix if present
@@ -53,7 +64,10 @@ func (c *Client) GetLatestImageId(containerID string) (string, error) {
 	// First inspect the container to get its image name
 	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
 	if err != nil {
-		return "", err
+		if strings.Contains(err.Error(), "No such container") {
+			return "", fmt.Errorf("container %s does not exist or is not running", containerID)
+		}
+		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 
 	// Get the image name from container config
@@ -65,7 +79,7 @@ func (c *Client) GetLatestImageId(containerID string) (string, error) {
 	// List images with this reference
 	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to list Docker images: %w", err)
 	}
 
 	// Find the most recently created image with matching reference

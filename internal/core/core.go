@@ -71,6 +71,13 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 	s.Suffix = fmt.Sprintf(" Updating %s", serviceName)
 	s.Start()
 	
+	// First validate that the service exists in the compose file
+	if err := opts.ComposeOpts.ValidateServiceExists(serviceName); err != nil {
+		s.FinalMSG = fmt.Sprintf("❌ Service '%s' does not exist in docker-compose file\n", serviceName)
+		s.Stop()
+		return err
+	}
+	
 	// Get current container ID
 	currentContainerID, err := opts.ComposeOpts.GetCurrentContainerId(serviceName)
 	if err != nil {

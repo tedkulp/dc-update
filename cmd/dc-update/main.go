@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"dc-update/internal/core"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -43,16 +45,45 @@ func main() {
 				return fmt.Errorf("docker-compose file does not exist: %s", dockerComposeFile)
 			}
 
-			// Get container names from arguments
+			// Get CLI arguments
 			containerNames := cCtx.Args().Slice()
 			buildContainers := cCtx.StringSlice("build")
 			showWarnings := cCtx.Bool("show-warnings")
 
-			// Debug output for now
-			fmt.Printf("Docker-compose file: %s\n", dockerComposeFile)
-			fmt.Printf("Container names: %v\n", containerNames)
-			fmt.Printf("Build containers: %v\n", buildContainers)
-			fmt.Printf("Show warnings: %v\n", showWarnings)
+			// Initialize updater
+			updater, err := core.NewUpdaterOptions(dockerComposeFile, showWarnings)
+			if err != nil {
+				return fmt.Errorf("failed to initialize updater: %w", err)
+			}
+			defer updater.Close()
+
+			// Determine service names - use args if provided, otherwise get all services
+			var serviceNames []string
+			if len(containerNames) > 0 {
+				serviceNames = containerNames
+			} else {
+				allServices, err := updater.ComposeOpts.GetServiceNames()
+				if err != nil {
+					return fmt.Errorf("failed to get service names: %w", err)
+				}
+				serviceNames = allServices
+			}
+
+			// Handle build containers if specified
+			if len(buildContainers) > 0 {
+				fmt.Printf("Building containers: %v\n", buildContainers)
+				if err := updater.ComposeOpts.BuildContainers(buildContainers); err != nil {
+					return fmt.Errorf("failed to build containers: %w", err)
+				}
+			}
+
+			// Process each container sequentially
+			for _, serviceName := range serviceNames {
+				if err := updater.UpdateContainer(serviceName); err != nil {
+					fmt.Fprintf(os.Stderr, "Error updating %s: %v\n", serviceName, err)
+					continue // Continue with other containers instead of failing completely
+				}
+			}
 
 			return nil
 		},
