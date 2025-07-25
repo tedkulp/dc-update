@@ -25,23 +25,23 @@ func NewOptions(composeFilePath string) *Options {
 func (opts *Options) GetServiceNames() ([]string, error) {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "config", "--services")
 	cmd.Dir = opts.WorkingDir
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Parse output - split by newlines and filter empty strings
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	services := make([]string, 0, len(lines))
-	
+
 	for _, line := range lines {
 		service := strings.TrimSpace(line)
 		if service != "" {
 			services = append(services, service)
 		}
 	}
-	
+
 	return services, nil
 }
 
@@ -49,12 +49,12 @@ func (opts *Options) GetServiceNames() ([]string, error) {
 func (opts *Options) GetCurrentContainerId(serviceName string) (string, error) {
 	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "ps", "-q", serviceName)
 	cmd.Dir = opts.WorkingDir
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Parse output - trim whitespace and return container ID
 	containerID := strings.TrimSpace(string(output))
 	return containerID, nil
@@ -92,7 +92,7 @@ func (opts *Options) PullContainer(serviceName string) error {
 func (opts *Options) BuildContainers(serviceNames []string) error {
 	args := []string{"compose", "-f", opts.ComposeFile, "build", "--pull"}
 	args = append(args, serviceNames...)
-	
+
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = opts.WorkingDir
 	return cmd.Run()
@@ -103,10 +103,10 @@ func (opts *Options) RestartContainer(serviceName string) error {
 	if err := opts.StopContainer(serviceName); err != nil {
 		return err
 	}
-	
+
 	if err := opts.RemoveContainer(serviceName); err != nil {
 		return err
 	}
-	
+
 	return opts.StartContainer(serviceName)
 }

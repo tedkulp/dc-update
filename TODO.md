@@ -59,44 +59,44 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
   - [x] `buildContainers()` - Execute `docker-compose build --pull [services...]`
 
 ### Docker API Integration
-- [ ] Initialize Docker client connection
-- [ ] Implement `getCurrentImageId()` function
-  - [ ] Use Docker client to inspect container
-  - [ ] Extract current image ID from container info
-  - [ ] Handle SHA256 prefix parsing
-- [ ] Implement `getLatestImageId()` function
-  - [ ] Pull latest image using docker-compose
-  - [ ] Use Docker client to list images by reference
-  - [ ] Find most recently created image
-  - [ ] Extract and return image ID
+- [x] Initialize Docker client connection
+- [x] Implement `getCurrentImageId()` function
+  - [x] Use Docker client to inspect container
+  - [x] Extract current image ID from container info
+  - [x] Handle SHA256 prefix parsing
+- [x] Implement `getLatestImageId()` function
+  - [x] Pull latest image using docker-compose
+  - [x] Use Docker client to list images by reference
+  - [x] Find most recently created image
+  - [x] Extract and return image ID
 
 ### Core Business Logic
-- [ ] Implement `updateContainer()` function
-  - [ ] Initialize spinner with container name
-  - [ ] Get current container ID
-  - [ ] Handle non-running container warnings
-  - [ ] Compare current vs latest image IDs
-  - [ ] Restart container if image differs
-  - [ ] Update spinner text during operations
-  - [ ] Show success/failure messages
-- [ ] Implement `restartContainer()` function
-  - [ ] Stop container
-  - [ ] Remove container
-  - [ ] Start container
-  - [ ] Handle errors at each step
+- [x] Implement `updateContainer()` function
+  - [x] Initialize spinner with container name
+  - [x] Get current container ID
+  - [x] Handle non-running container warnings
+  - [x] Compare current vs latest image IDs
+  - [x] Restart container if image differs
+  - [x] Update spinner text during operations
+  - [x] Show success/failure messages
+- [x] Implement `restartContainer()` function
+  - [x] Stop container
+  - [x] Remove container
+  - [x] Start container
+  - [x] Handle errors at each step
 
 ### Terminal Output & UX
-- [ ] Implement spinner functionality
-  - [ ] Start spinner with initial message
-  - [ ] Update spinner text during operations
-  - [ ] Success messages with checkmark
-  - [ ] Warning messages with warning symbol
-  - [ ] Error messages with X symbol
-- [ ] Implement `warnIfEnabled()` function
-  - [ ] Show warnings based on `--show-warnings` flag
-  - [ ] Proper spinner state management
-- [ ] Match original color scheme and formatting
-- [ ] Ensure proper terminal cleanup on exit
+- [x] Implement spinner functionality
+  - [x] Start spinner with initial message
+  - [x] Update spinner text during operations
+  - [x] Success messages with checkmark
+  - [x] Warning messages with warning symbol
+  - [x] Error messages with X symbol
+- [x] Implement `warnIfEnabled()` function
+  - [x] Show warnings based on `--show-warnings` flag
+  - [x] Proper spinner state management
+- [x] Match original color scheme and formatting
+- [x] Ensure proper terminal cleanup on exit
 
 ## Main Application Flow
 - [ ] Implement main execution logic

@@ -22,3 +22,5 @@ Thumbs.db
 
 # Log files
 *.log
+
+/dc-update
