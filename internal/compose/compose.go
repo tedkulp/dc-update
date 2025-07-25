@@ -34,11 +34,11 @@ func (opts *Options) GetServiceNames() ([]string, error) {
 
 	// Parse output - split by newlines and filter empty strings
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	// Pre-allocate with exact capacity to avoid reallocations
 	services := make([]string, 0, len(lines))
 
 	for _, line := range lines {
-		service := strings.TrimSpace(line)
-		if service != "" {
+		if service := strings.TrimSpace(line); service != "" {
 			services = append(services, service)
 		}
 	}

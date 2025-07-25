@@ -5,13 +5,14 @@ go 1.23.0
 toolchain go1.23.4
 
 require (
+	github.com/briandowns/spinner v1.23.2
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/urfave/cli/v2 v2.27.7
+	golang.org/x/term v0.1.0
 )
 
 require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
-	github.com/briandowns/spinner v1.23.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -29,7 +30,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	golang.org/x/sys v0.12.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )

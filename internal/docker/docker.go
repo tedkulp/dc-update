@@ -9,10 +9,12 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// Client wraps the Docker API client
+// Client wraps the Docker API client with caching for performance
 type Client struct {
-	cli *client.Client
-	ctx context.Context
+	cli        *client.Client
+	ctx        context.Context
+	imageCache map[string]*types.ImageSummary  // Cache for image lookups
+	containerCache map[string]*types.ContainerJSON // Cache for container inspections
 }
 
 // NewClient creates a new Docker API client
@@ -30,8 +32,10 @@ func NewClient() (*Client, error) {
 	}
 
 	return &Client{
-		cli: cli,
-		ctx: ctx,
+		cli:        cli,
+		ctx:        ctx,
+		imageCache: make(map[string]*types.ImageSummary),
+		containerCache: make(map[string]*types.ContainerJSON),
 	}, nil
 }
 
@@ -40,14 +44,61 @@ func (c *Client) Close() error {
 	return c.cli.Close()
 }
 
-// GetCurrentImageId inspects a container and returns its current image ID
-func (c *Client) GetCurrentImageId(containerID string) (string, error) {
+// populateImageCache loads all images into cache for faster lookups
+func (c *Client) populateImageCache() error {
+	// Skip if cache is already populated
+	if len(c.imageCache) > 0 {
+		return nil
+	}
+	
+	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Docker images: %w", err)
+	}
+	
+	// Pre-allocate cache with estimated capacity
+	estimatedCapacity := len(images) * 2 // Rough estimate for repo tags
+	c.imageCache = make(map[string]*types.ImageSummary, estimatedCapacity)
+	
+	// Populate cache with all image references
+	for _, image := range images {
+		for _, repoTag := range image.RepoTags {
+			if repoTag != "<none>:<none>" {
+				imageCopy := image // Create copy to avoid pointer issues
+				c.imageCache[repoTag] = &imageCopy
+			}
+		}
+	}
+	
+	return nil
+}
+
+// getContainerInspection gets container info with caching
+func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSON, error) {
+	// Check cache first
+	if cached, exists := c.containerCache[containerID]; exists {
+		return cached, nil
+	}
+	
+	// Not in cache, fetch from API
 	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "No such container") {
-			return "", fmt.Errorf("container %s does not exist or is not running", containerID)
+			return nil, fmt.Errorf("container %s does not exist or is not running", containerID)
 		}
-		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+		return nil, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+	}
+	
+	// Cache the result
+	c.containerCache[containerID] = &containerJSON
+	return &containerJSON, nil
+}
+
+// GetCurrentImageId inspects a container and returns its current image ID
+func (c *Client) GetCurrentImageId(containerID string) (string, error) {
+	containerJSON, err := c.getContainerInspection(containerID)
+	if err != nil {
+		return "", err
 	}
 
 	// Extract image ID and remove 'sha256:' prefix if present
@@ -62,12 +113,9 @@ func (c *Client) GetCurrentImageId(containerID string) (string, error) {
 // GetLatestImageId gets the container's image name and finds the latest image with that reference
 func (c *Client) GetLatestImageId(containerID string) (string, error) {
 	// First inspect the container to get its image name
-	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
+	containerJSON, err := c.getContainerInspection(containerID)
 	if err != nil {
-		if strings.Contains(err.Error(), "No such container") {
-			return "", fmt.Errorf("container %s does not exist or is not running", containerID)
-		}
-		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+		return "", err
 	}
 
 	// Get the image name from container config
@@ -76,41 +124,8 @@ func (c *Client) GetLatestImageId(containerID string) (string, error) {
 		return "", nil
 	}
 
-	// List images with this reference
-	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list Docker images: %w", err)
-	}
-
-	// Find the most recently created image with matching reference
-	var latestImage *types.ImageSummary
-	latestCreated := int64(0)
-
-	for _, image := range images {
-		// Check if this image matches our reference
-		for _, repoTag := range image.RepoTags {
-			if repoTag == imageName {
-				if image.Created > latestCreated {
-					latestCreated = image.Created
-					imageCopy := image // Create a copy to avoid pointer issues
-					latestImage = &imageCopy
-				}
-				break
-			}
-		}
-	}
-
-	if latestImage == nil {
-		return "", nil
-	}
-
-	// Extract image ID and remove 'sha256:' prefix if present
-	imageID := latestImage.ID
-	if strings.HasPrefix(imageID, "sha256:") {
-		imageID = strings.TrimPrefix(imageID, "sha256:")
-	}
-
-	return imageID, nil
+	// Use the optimized GetImageId method
+	return c.GetImageId(imageName)
 }
 
 // GetImageId gets the image ID for a specific image reference (name:tag)
@@ -119,27 +134,31 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 		return "", fmt.Errorf("image name cannot be empty")
 	}
 
-	// List images to find the one matching our reference
-	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list Docker images: %w", err)
+	// Ensure image cache is populated
+	if err := c.populateImageCache(); err != nil {
+		return "", err
 	}
 
-	// Find the image with matching reference
-	for _, image := range images {
-		// Check if this image matches our reference
-		for _, repoTag := range image.RepoTags {
-			if repoTag == imageName {
-				// Remove sha256: prefix if present
-				imageID := image.ID
-				if strings.HasPrefix(imageID, "sha256:") {
-					imageID = imageID[7:]
-				}
-				return imageID, nil
-			}
+	// Look up image in cache
+	if image, exists := c.imageCache[imageName]; exists {
+		// Remove sha256: prefix if present
+		imageID := image.ID
+		if strings.HasPrefix(imageID, "sha256:") {
+			imageID = imageID[7:]
 		}
+		return imageID, nil
 	}
 
 	// If we didn't find it locally, return empty string (image may need to be pulled)
 	return "", nil
+}
+
+// RefreshImageCache clears and repopulates the image cache
+// This should be called after docker-compose pull operations
+func (c *Client) RefreshImageCache() error {
+	// Clear existing cache
+	c.imageCache = make(map[string]*types.ImageSummary)
+	
+	// Repopulate cache
+	return c.populateImageCache()
 }

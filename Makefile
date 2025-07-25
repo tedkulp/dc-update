@@ -17,7 +17,11 @@ help:
 
 # Build binary for current platform
 build:
-	go build -o dc-update cmd/dc-update/main.go
+	go build -ldflags="-s -w" -o dc-update cmd/dc-update/main.go
+
+# Build optimized binary
+build-optimized:
+	go build -ldflags="-s -w" -gcflags="-l=4" -o dc-update cmd/dc-update/main.go
 
 # Run without building (development)
 dev:

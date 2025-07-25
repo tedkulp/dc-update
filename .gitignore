@@ -24,3 +24,6 @@ Thumbs.db
 *.log
 
 /dc-update
+
+dist/
+node_modules/

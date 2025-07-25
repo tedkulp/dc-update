@@ -41,6 +41,11 @@ func main() {
 				Name:  "show-warnings",
 				Usage: "Show warnings for containers that aren't running (default: false)",
 			},
+			&cli.BoolFlag{
+				Name:    "non-interactive",
+				Aliases: []string{"n"},
+				Usage:   "Disable spinners and use plain text output",
+			},
 		},
 		Action: func(cCtx *cli.Context) error {
 			// Validate docker-compose file existence
@@ -57,9 +62,10 @@ func main() {
 			containerNames := cCtx.Args().Slice()
 			buildContainers := cCtx.StringSlice("build")
 			showWarnings := cCtx.Bool("show-warnings")
+			nonInteractive := cCtx.Bool("non-interactive")
 
 			// Initialize updater
-			updater, err := core.NewUpdaterOptions(dockerComposeFile, showWarnings)
+			updater, err := core.NewUpdaterOptions(dockerComposeFile, showWarnings, nonInteractive)
 			if err != nil {
 				return fmt.Errorf("failed to initialize updater: %w", err)
 			}
@@ -85,12 +91,9 @@ func main() {
 				}
 			}
 
-			// Process each container sequentially
-			for _, serviceName := range serviceNames {
-				if err := updater.UpdateContainer(serviceName); err != nil {
-					fmt.Fprintf(os.Stderr, "Error updating %s: %v\n", serviceName, err)
-					continue // Continue with other containers instead of failing completely
-				}
+			// Process containers with controlled concurrency
+			if err := updater.UpdateContainersConcurrently(serviceNames); err != nil {
+				return fmt.Errorf("failed to update containers: %w", err)
 			}
 
 			return nil

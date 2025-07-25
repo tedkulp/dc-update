@@ -173,11 +173,11 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 - [x] Update examples if needed
 
 ## Performance & Optimization
-- [ ] Implement proper concurrency if beneficial
-- [ ] Optimize Docker API calls
-- [ ] Consider connection pooling/reuse
-- [ ] Profile memory usage
-- [ ] Optimize for startup time
+- [x] Implement proper concurrency if beneficial
+- [x] Optimize Docker API calls
+- [x] Consider connection pooling/reuse
+- [x] Profile memory usage  
+- [x] Optimize for startup time
 
 ## Final Verification
 - [ ] Full functionality comparison with Node.js version
