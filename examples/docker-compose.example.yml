@@ -1,0 +1,76 @@
+# Example docker-compose.yml showing various scenarios dc-update can handle
+# This demonstrates different types of containers and configurations
+
+version: '3.8'
+
+services:
+  # Web server - simple image reference
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  # API server - specific version tag
+  api:
+    image: node:18-alpine
+    command: ["npm", "start"]
+    working_dir: /app
+    volumes:
+      - ./api:/app
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - database
+      - redis
+    restart: unless-stopped
+
+  # Database - with persistent storage
+  database:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: secret123
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Cache - simple service
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Worker - same image as API but different command
+  worker:
+    image: node:18-alpine
+    command: ["npm", "run", "worker"]
+    working_dir: /app
+    volumes:
+      - ./api:/app
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - database
+      - redis
+    restart: unless-stopped
+
+  # Built container example (would need Dockerfile in ./app)
+  # app:
+  #   build: ./app
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - database
+  #   restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:

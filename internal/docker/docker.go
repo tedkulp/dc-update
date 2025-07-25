@@ -112,3 +112,34 @@ func (c *Client) GetLatestImageId(containerID string) (string, error) {
 
 	return imageID, nil
 }
+
+// GetImageId gets the image ID for a specific image reference (name:tag)
+func (c *Client) GetImageId(imageName string) (string, error) {
+	if imageName == "" {
+		return "", fmt.Errorf("image name cannot be empty")
+	}
+
+	// List images to find the one matching our reference
+	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to list Docker images: %w", err)
+	}
+
+	// Find the image with matching reference
+	for _, image := range images {
+		// Check if this image matches our reference
+		for _, repoTag := range image.RepoTags {
+			if repoTag == imageName {
+				// Remove sha256: prefix if present
+				imageID := image.ID
+				if strings.HasPrefix(imageID, "sha256:") {
+					imageID = imageID[7:]
+				}
+				return imageID, nil
+			}
+		}
+	}
+
+	// If we didn't find it locally, return empty string (image may need to be pulled)
+	return "", nil
+}

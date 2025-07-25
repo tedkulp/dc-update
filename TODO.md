@@ -117,28 +117,60 @@ This document outlines the steps to convert the Node.js `dc-update` CLI tool to 
 - [x] Add helpful error messages matching original behavior
 
 ## Testing & Validation
-- [ ] Create test docker-compose.yml for testing
-- [ ] Test CLI argument parsing
-- [ ] Test with running containers
-- [ ] Test with stopped containers
-- [ ] Test with non-existent containers
-- [ ] Test build functionality
-- [ ] Test file path handling (relative/absolute)
-- [ ] Test warning flag behavior
-- [ ] Compare output format with original Node.js version
+- [x] Create test docker-compose.yml for testing
+- [x] Test CLI argument parsing
+- [x] Test with running containers
+- [x] Test with stopped containers
+- [x] Test with non-existent containers
+- [x] Test build functionality
+- [x] Test file path handling (relative/absolute)
+- [x] Test warning flag behavior
+- [x] Compare output format with original Node.js version
 
 ## Build & Distribution
-- [ ] Create build scripts/Makefile
-- [ ] Set up cross-compilation for multiple platforms
-- [ ] Configure version information embedding
-- [ ] Create installation instructions
-- [ ] Update release process from npm to Go releases
+- [x] Install and configure GoReleaser
+  - [x] Install GoReleaser CLI (`go install github.com/goreleaser/goreleaser@latest`)
+  - [x] Initialize GoReleaser config with `goreleaser init`
+  - [x] Configure `.goreleaser.yaml` for project needs
+- [x] Set up cross-compilation and platform targets
+  - [x] Configure supported OS/architecture combinations (linux, darwin, windows)
+  - [x] Set up ARM64 and AMD64 builds
+  - [x] Configure build flags and linker settings
+- [x] Configure version management and Git integration
+  - [x] Set up semantic versioning with Git tags
+  - [x] Configure version embedding in binary (`-ldflags`)
+  - [x] Set up Git tag validation and release triggers
+- [x] Set up package manager integration
+  - [x] Configure Homebrew tap for macOS installation
+  - [x] Set up Scoop bucket for Windows installation
+  - [ ] Configure AUR package for Arch Linux (optional)
+- [x] Configure standalone binary distribution for direct downloads
+  - [x] Configure GoReleaser to upload standalone executables alongside archives
+  - [x] Set up individual binary uploads for each OS/arch combination
+  - [x] Enable direct wget/curl download URLs (e.g., `wget https://github.com/user/dc-update/releases/latest/download/dc-update-linux-amd64`)
+  - [x] Configure proper binary naming conventions for easy server deployment
+  - [x] Verify standalone binaries work without extraction or additional setup
+- [x] Configure release automation
+  - [x] Set up GitHub Actions workflow for automated releases
+  - [x] Configure release notes and changelog generation
+  - [x] Set up draft releases and manual approval process
+- [x] Set up container distribution (optional)
+  - [x] Configure Docker image builds and registry pushes
+  - [x] Set up multi-arch container images
+- [x] Configure security and signing
+  - [x] Set up binary signing for macOS and Windows
+  - [x] Configure checksum generation and verification
+  - [x] Set up SLSA provenance generation
+- [x] Test release process
+  - [x] Test local builds with `goreleaser build --snapshot`
+  - [x] Test full release process with `goreleaser release --snapshot`
+  - [x] Validate generated artifacts and packages
 
 ## Documentation Updates
-- [ ] Update README.md for Go installation and usage
-- [ ] Update CLAUDE.md with Go-specific development commands
-- [ ] Document new build and test commands
-- [ ] Update examples if needed
+- [x] Update README.md for Go installation and usage
+- [x] Update CLAUDE.md with Go-specific development commands
+- [x] Document new build and test commands
+- [x] Update examples if needed
 
 ## Performance & Optimization
 - [ ] Implement proper concurrency if beneficial

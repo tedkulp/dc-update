@@ -91,14 +91,15 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 		return nil
 	}
 	
-	// Pull latest image first
-	if err := opts.ComposeOpts.PullContainer(serviceName); err != nil {
-		s.FinalMSG = fmt.Sprintf("❌ Failed to pull latest image for %s\n", serviceName)
+	// Get the expected image name from the docker-compose file
+	expectedImageName, err := opts.ComposeOpts.GetServiceImageName(serviceName)
+	if err != nil {
+		s.FinalMSG = fmt.Sprintf("❌ Failed to get image name for %s\n", serviceName)
 		s.Stop()
-		return fmt.Errorf("failed to pull latest image for %s: %w", serviceName, err)
+		return fmt.Errorf("failed to get image name for %s: %w", serviceName, err)
 	}
 	
-	// Get current and latest image IDs
+	// Get current container's image ID
 	currentImageID, err := opts.DockerClient.GetCurrentImageId(currentContainerID)
 	if err != nil {
 		s.FinalMSG = fmt.Sprintf("❌ Failed to get current image ID for %s\n", serviceName)
@@ -106,15 +107,23 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 		return fmt.Errorf("failed to get current image ID for %s: %w", serviceName, err)
 	}
 	
-	latestImageID, err := opts.DockerClient.GetLatestImageId(currentContainerID)
-	if err != nil {
-		s.FinalMSG = fmt.Sprintf("❌ Failed to get latest image ID for %s\n", serviceName)
+	// Pull the expected image to ensure we have the latest version
+	if err := opts.ComposeOpts.PullContainer(serviceName); err != nil {
+		s.FinalMSG = fmt.Sprintf("❌ Failed to pull image for %s\n", serviceName)
 		s.Stop()
-		return fmt.Errorf("failed to get latest image ID for %s: %w", serviceName, err)
+		return fmt.Errorf("failed to pull image for %s: %w", serviceName, err)
+	}
+	
+	// Get the expected image ID after pulling
+	expectedImageID, err := opts.DockerClient.GetImageId(expectedImageName)
+	if err != nil {
+		s.FinalMSG = fmt.Sprintf("❌ Failed to get expected image ID for %s\n", serviceName)
+		s.Stop()
+		return fmt.Errorf("failed to get expected image ID for %s: %w", serviceName, err)
 	}
 	
 	// Compare image IDs and update if different
-	if latestImageID != "" && currentImageID != latestImageID {
+	if expectedImageID != "" && currentImageID != expectedImageID {
 		s.Suffix = fmt.Sprintf(" Updating and restarting %s", serviceName)
 		
 		if err := opts.RestartContainer(serviceName); err != nil {

@@ -1,0 +1,35 @@
+# Example docker-compose.yml file for testing dc-update
+# This demonstrates various container types that dc-update can manage
+version: '3.8'
+
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  api:
+    image: node:18-alpine
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./app:/usr/src/app
+    working_dir: /usr/src/app
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

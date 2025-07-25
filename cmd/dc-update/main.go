@@ -11,9 +11,17 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// Version information set by GoReleaser
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() {
 	app := &cli.App{
 		Name:  "dc-update",
+		Version: version,
 		Usage: "An opinionated script for updating large docker-compose based systems",
 		UsageText: "dc-update [CONTAINER_NAME]...",
 		Description: `dc-update intelligently updates only containers that have newer images available, avoiding unnecessary restarts.`,

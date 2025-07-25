@@ -135,6 +135,59 @@ func (opts *Options) BuildContainers(serviceNames []string) error {
 	return nil
 }
 
+// GetServiceImageName gets the image name for a specific service from docker-compose config
+func (opts *Options) GetServiceImageName(serviceName string) (string, error) {
+	// Verify service exists first
+	if err := opts.ValidateServiceExists(serviceName); err != nil {
+		return "", err
+	}
+	
+	// Use docker compose config to get the YAML and parse it
+	cmd := exec.Command("docker", "compose", "-f", opts.ComposeFile, "config")
+	cmd.Dir = opts.WorkingDir
+	
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get docker-compose config: %w", err)
+	}
+	
+	// Parse the YAML output to find the image for this service
+	lines := strings.Split(string(output), "\n")
+	inService := false
+	serviceIndent := ""
+	
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		
+		// Check if we're entering our target service
+		if strings.HasPrefix(trimmed, serviceName+":") {
+			inService = true
+			serviceIndent = strings.Repeat(" ", len(line)-len(strings.TrimLeft(line, " ")))
+			continue
+		}
+		
+		// If we're in the service, look for the image field
+		if inService {
+			// Check if we've moved to a different service (same or less indentation)
+			currentIndent := strings.Repeat(" ", len(line)-len(strings.TrimLeft(line, " ")))
+			if len(currentIndent) <= len(serviceIndent) && trimmed != "" && !strings.HasPrefix(line, serviceIndent+" ") {
+				inService = false
+				continue
+			}
+			
+			// Look for image: field
+			if strings.HasPrefix(trimmed, "image:") {
+				imageName := strings.TrimSpace(strings.TrimPrefix(trimmed, "image:"))
+				// Remove quotes if present
+				imageName = strings.Trim(imageName, "\"'")
+				return imageName, nil
+			}
+		}
+	}
+	
+	return "", fmt.Errorf("could not find image for service %s", serviceName)
+}
+
 // RestartContainer is a convenience method that stops, removes, and starts a container
 func (opts *Options) RestartContainer(serviceName string) error {
 	if err := opts.StopContainer(serviceName); err != nil {
