@@ -65,22 +65,25 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}"
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:latest"
     dockerfile: Dockerfile
+    use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{ .Date }}"
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
       - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
       - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}"
   - image_templates:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}-arm64"
     dockerfile: Dockerfile
+    use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{ .Date }}"
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
       - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
       - "--label=org.opencontainers.image.version={{ .Version }}"
-    goarch: arm64
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}"
 
 docker_manifests:
   - name_template: "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}"
