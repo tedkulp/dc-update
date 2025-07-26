@@ -65,6 +65,11 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}-amd64"
     dockerfile: Dockerfile
     use: buildx
+    extra_files:
+      - cmd/
+      - internal/
+      - go.sum
+      - go.mod
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{ .Date }}"
@@ -76,6 +81,11 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}-arm64"
     dockerfile: Dockerfile
     use: buildx
+    extra_files:
+      - cmd/
+      - internal/
+      - go.sum
+      - go.mod
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{ .Date }}"
