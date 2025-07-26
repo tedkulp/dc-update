@@ -107,19 +107,20 @@ docker_manifests:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}-arm64"
 
 # Homebrew tap configuration
-# brews:
-#   - name: dc-update
-#     ids:
-#       - default
-#     repository:
-#       owner: "{{ .Env.GITHUB_OWNER }}"
-#       name: homebrew-tap
-#     url_template: "https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-#     description: "An opinionated script for updating large docker-compose based systems"
-#     homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}"
-#     license: "MIT"
-#     test: |
-#       system "#{bin}/dc-update --help"
+brews:
+  - name: dc-update
+    ids:
+      - default
+    repository:
+      owner: "{{ .Env.GITHUB_OWNER }}"
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TOKEN }}'
+    url_template: "https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    description: "An opinionated script for updating large docker-compose based systems"
+    homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}"
+    license: "MIT"
+    test: |
+      system "#{bin}/dc-update --help"
 
 # Scoop bucket configuration for Windows
 # scoops:
