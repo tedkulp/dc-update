@@ -2,6 +2,7 @@
 # See https://goreleaser.com for documentation
 
 version: 1
+project_name: dc-update
 
 before:
   hooks:
