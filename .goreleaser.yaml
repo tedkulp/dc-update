@@ -96,7 +96,7 @@ dockers:
       - "--label=org.opencontainers.image.version={{ .Version }}"
       - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}"
 
-# docker_manifests:
+docker_manifests:
   - name_template: "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}"
     image_templates:
       - "ghcr.io/{{ .Env.GITHUB_OWNER }}/{{ .ProjectName }}:{{ .Version }}-amd64"
