@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
+	imagetypes "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
@@ -13,7 +14,7 @@ import (
 type Client struct {
 	cli        *client.Client
 	ctx        context.Context
-	imageCache map[string]*types.ImageSummary  // Cache for image lookups
+	imageCache map[string]*imagetypes.Summary  // Cache for image lookups
 	containerCache map[string]*types.ContainerJSON // Cache for container inspections
 }
 
@@ -34,7 +35,7 @@ func NewClient() (*Client, error) {
 	return &Client{
 		cli:        cli,
 		ctx:        ctx,
-		imageCache: make(map[string]*types.ImageSummary),
+		imageCache: make(map[string]*imagetypes.Summary),
 		containerCache: make(map[string]*types.ContainerJSON),
 	}, nil
 }
@@ -51,14 +52,14 @@ func (c *Client) populateImageCache() error {
 		return nil
 	}
 	
-	images, err := c.cli.ImageList(c.ctx, types.ImageListOptions{})
+	images, err := c.cli.ImageList(c.ctx, imagetypes.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list Docker images: %w", err)
 	}
 	
 	// Pre-allocate cache with estimated capacity
 	estimatedCapacity := len(images) * 2 // Rough estimate for repo tags
-	c.imageCache = make(map[string]*types.ImageSummary, estimatedCapacity)
+	c.imageCache = make(map[string]*imagetypes.Summary, estimatedCapacity)
 	
 	// Populate cache with all image references
 	for _, image := range images {
@@ -157,8 +158,8 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 // This should be called after docker-compose pull operations
 func (c *Client) RefreshImageCache() error {
 	// Clear existing cache
-	c.imageCache = make(map[string]*types.ImageSummary)
-	
+	c.imageCache = make(map[string]*imagetypes.Summary)
+
 	// Repopulate cache
 	return c.populateImageCache()
 }
