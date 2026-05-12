@@ -11,10 +11,17 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// dockerAPI is the subset of the Docker client used by Client, allowing test fakes.
+type dockerAPI interface {
+	ImageList(ctx context.Context, options imagetypes.ListOptions) ([]imagetypes.Summary, error)
+	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	Close() error
+}
+
 // Client wraps the Docker API client with caching for performance
 type Client struct {
 	mu             sync.RWMutex
-	cli            *client.Client
+	cli            dockerAPI
 	ctx            context.Context
 	imageCache     map[string]*imagetypes.Summary
 	containerCache map[string]*types.ContainerJSON
