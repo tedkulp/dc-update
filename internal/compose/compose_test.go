@@ -48,7 +48,7 @@ func TestParseContainerID(t *testing.T) {
 		{
 			name:   "multiple lines with empty first line",
 			output: []byte("\nabc123def456\n"),
-			want:   "",
+			want:   "abc123def456",
 		},
 		{
 			name:   "single newline only",
