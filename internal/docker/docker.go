@@ -92,6 +92,13 @@ func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSO
 		return cached, nil
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Double-check now that we hold the write lock
+	if cached, exists = c.containerCache[containerID]; exists {
+		return cached, nil
+	}
+
 	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "No such container") {
@@ -100,9 +107,7 @@ func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSO
 		return nil, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 
-	c.mu.Lock()
 	c.containerCache[containerID] = &containerJSON
-	c.mu.Unlock()
 	return &containerJSON, nil
 }
 
@@ -165,12 +170,30 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 	return "", nil
 }
 
-// RefreshImageCache clears and repopulates the image cache
-// This should be called after docker-compose pull operations
+// RefreshImageCache clears and repopulates the image cache.
+// This should be called after docker-compose pull operations.
+// Both caches are cleared atomically and repopulated under a single write lock
+// to prevent concurrent callers from observing a partially-refreshed state.
 func (c *Client) RefreshImageCache() error {
 	c.mu.Lock()
-	c.imageCache = make(map[string]*imagetypes.Summary)
-	c.mu.Unlock()
+	defer c.mu.Unlock()
 
-	return c.populateImageCache()
+	c.containerCache = make(map[string]*types.ContainerJSON)
+
+	images, err := c.cli.ImageList(c.ctx, imagetypes.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Docker images: %w", err)
+	}
+
+	c.imageCache = make(map[string]*imagetypes.Summary, len(images)*2)
+	for _, image := range images {
+		for _, repoTag := range image.RepoTags {
+			if repoTag != "<none>:<none>" {
+				imageCopy := image
+				c.imageCache[repoTag] = &imageCopy
+			}
+		}
+	}
+
+	return nil
 }
