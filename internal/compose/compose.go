@@ -2,6 +2,7 @@ package compose
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -56,8 +57,15 @@ func (opts *Options) GetCurrentContainerId(serviceName string) (string, error) {
 		return "", err
 	}
 
-	// Parse output - trim whitespace and return container ID
-	containerID := strings.TrimSpace(string(output))
+	// Parse output - trim whitespace and return the first container ID.
+	// docker compose ps -q can return multiple IDs when a service has
+	// multiple replicas. Split on newlines and use the first non-empty line.
+	rawID := strings.TrimSpace(string(output))
+	lines := strings.Split(rawID, "\n")
+	containerID := strings.TrimSpace(lines[0])
+	if len(lines) > 1 {
+		log.Printf("debug: GetCurrentContainerId found %d container IDs for service '%s', using first: %s", len(lines), serviceName, containerID)
+	}
 	return containerID, nil
 }
 
