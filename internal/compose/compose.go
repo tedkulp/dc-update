@@ -57,16 +57,24 @@ func (opts *Options) GetCurrentContainerId(serviceName string) (string, error) {
 		return "", err
 	}
 
-	// Parse output - trim whitespace and return the first container ID.
-	// docker compose ps -q can return multiple IDs when a service has
-	// multiple replicas. Split on newlines and use the first non-empty line.
-	rawID := strings.TrimSpace(string(output))
-	lines := strings.Split(rawID, "\n")
-	containerID := strings.TrimSpace(lines[0])
-	if len(lines) > 1 {
-		log.Printf("debug: GetCurrentContainerId found %d container IDs for service '%s', using first: %s", len(lines), serviceName, containerID)
-	}
-	return containerID, nil
+\treturn parseContainerID(output), nil
+}
+
+// parseContainerID parses the output of `docker compose ps -q` and returns the first
+// non-empty container ID. If the output contains multiple lines (multiple replicas),
+// only the first line is returned. This handles the case where docker compose ps -q
+// returns one container ID per line for services with multiple replicas.
+func parseContainerID(output []byte) string {
+\trawID := strings.TrimSpace(string(output))
+\tif rawID == "" {
+\t\treturn ""
+\t}
+\tlines := strings.Split(rawID, "\n")
+\tcontainerID := strings.TrimSpace(lines[0])
+\tif len(lines) > 1 {
+\t\tlog.Printf("debug: GetCurrentContainerId found %d container IDs, using first: %s", len(lines), containerID)
+\t}
+\treturn containerID
 }
 
 // ValidateServiceExists checks if a service exists in the docker-compose file
