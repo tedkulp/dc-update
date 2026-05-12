@@ -152,6 +152,16 @@ func (c *Client) GetLatestImageId(containerID string) (string, error) {
 	return c.GetImageId(imageName)
 }
 
+// normalizeImageName ensures image names have a tag, defaulting to :latest if no tag is present.
+// Docker images are stored in RepoTags with a tag, so a bare name like "nginx" won't match
+// the cached "nginx:latest" entry without this normalization.
+func normalizeImageName(name string) string {
+	if !strings.Contains(name, ":") {
+		return name + ":latest"
+	}
+	return name
+}
+
 // GetImageId gets the image ID for a specific image reference (name:tag)
 func (c *Client) GetImageId(imageName string) (string, error) {
 	if imageName == "" {
@@ -163,8 +173,13 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 		return "", err
 	}
 
+	// Normalize image name by appending :latest if no tag is present
+	// Docker images are always stored with a tag in RepoTags, so a bare
+	// name like "nginx" won't match the cached "nginx:latest" entry.
+	normalizedName := normalizeImageName(imageName)
+
 	c.mu.RLock()
-	image, exists := c.imageCache[imageName]
+	image, exists := c.imageCache[normalizedName]
 	c.mu.RUnlock()
 	if exists {
 		imageID := image.ID

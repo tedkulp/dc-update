@@ -207,7 +207,16 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 	}
 	
 	// Compare image IDs and update if different
-	if expectedImageID != "" && currentImageID != expectedImageID {
+	if expectedImageID == "" {
+		// A blank expectedImageID means the image name from docker compose config
+		// was not found in the local Docker daemon (e.g. the name lacks a :latest
+		// suffix, or the image hasn't been pulled yet). This should not silently
+		// report "already up to date".
+		opts.warnIfEnabled(sw, fmt.Sprintf("Expected image ID not found for %s — image may not be pulled yet or name lacks a tag", serviceName))
+		return nil
+	}
+
+	if currentImageID != expectedImageID {
 		sw.UpdateSuffix(fmt.Sprintf("Updating and restarting %s", serviceName))
 		
 		if err := opts.RestartContainer(serviceName); err != nil {
