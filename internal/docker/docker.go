@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types"
 	imagetypes "github.com/docker/docker/api/types/image"
@@ -12,10 +13,11 @@ import (
 
 // Client wraps the Docker API client with caching for performance
 type Client struct {
-	cli        *client.Client
-	ctx        context.Context
-	imageCache map[string]*imagetypes.Summary  // Cache for image lookups
-	containerCache map[string]*types.ContainerJSON // Cache for container inspections
+	mu             sync.RWMutex
+	cli            *client.Client
+	ctx            context.Context
+	imageCache     map[string]*imagetypes.Summary
+	containerCache map[string]*types.ContainerJSON
 }
 
 // NewClient creates a new Docker API client
@@ -47,41 +49,49 @@ func (c *Client) Close() error {
 
 // populateImageCache loads all images into cache for faster lookups
 func (c *Client) populateImageCache() error {
-	// Skip if cache is already populated
+	c.mu.RLock()
+	populated := len(c.imageCache) > 0
+	c.mu.RUnlock()
+	if populated {
+		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Double-check now that we hold the write lock
 	if len(c.imageCache) > 0 {
 		return nil
 	}
-	
+
 	images, err := c.cli.ImageList(c.ctx, imagetypes.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list Docker images: %w", err)
 	}
-	
-	// Pre-allocate cache with estimated capacity
-	estimatedCapacity := len(images) * 2 // Rough estimate for repo tags
+
+	estimatedCapacity := len(images) * 2
 	c.imageCache = make(map[string]*imagetypes.Summary, estimatedCapacity)
-	
-	// Populate cache with all image references
+
 	for _, image := range images {
 		for _, repoTag := range image.RepoTags {
 			if repoTag != "<none>:<none>" {
-				imageCopy := image // Create copy to avoid pointer issues
+				imageCopy := image
 				c.imageCache[repoTag] = &imageCopy
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 // getContainerInspection gets container info with caching
 func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSON, error) {
-	// Check cache first
-	if cached, exists := c.containerCache[containerID]; exists {
+	c.mu.RLock()
+	cached, exists := c.containerCache[containerID]
+	c.mu.RUnlock()
+	if exists {
 		return cached, nil
 	}
-	
-	// Not in cache, fetch from API
+
 	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "No such container") {
@@ -89,9 +99,10 @@ func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSO
 		}
 		return nil, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
-	
-	// Cache the result
+
+	c.mu.Lock()
 	c.containerCache[containerID] = &containerJSON
+	c.mu.Unlock()
 	return &containerJSON, nil
 }
 
@@ -140,9 +151,10 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 		return "", err
 	}
 
-	// Look up image in cache
-	if image, exists := c.imageCache[imageName]; exists {
-		// Remove sha256: prefix if present
+	c.mu.RLock()
+	image, exists := c.imageCache[imageName]
+	c.mu.RUnlock()
+	if exists {
 		imageID := image.ID
 		if strings.HasPrefix(imageID, "sha256:") {
 			imageID = imageID[7:]
@@ -150,16 +162,15 @@ func (c *Client) GetImageId(imageName string) (string, error) {
 		return imageID, nil
 	}
 
-	// If we didn't find it locally, return empty string (image may need to be pulled)
 	return "", nil
 }
 
 // RefreshImageCache clears and repopulates the image cache
 // This should be called after docker-compose pull operations
 func (c *Client) RefreshImageCache() error {
-	// Clear existing cache
+	c.mu.Lock()
 	c.imageCache = make(map[string]*imagetypes.Summary)
+	c.mu.Unlock()
 
-	// Repopulate cache
 	return c.populateImageCache()
 }
