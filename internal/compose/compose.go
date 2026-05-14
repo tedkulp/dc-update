@@ -15,12 +15,15 @@ type Options struct {
 }
 
 // NewOptions creates docker-compose options from a compose file path
-func NewOptions(composeFilePath string) *Options {
-	absPath, _ := filepath.Abs(composeFilePath)
+func NewOptions(composeFilePath string) (*Options, error) {
+	absPath, err := filepath.Abs(composeFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve compose file path: %w", err)
+	}
 	return &Options{
 		ComposeFile: filepath.Base(absPath),
 		WorkingDir:  filepath.Dir(absPath),
-	}
+	}, nil
 }
 
 // GetServiceNames executes `docker compose config --services` and returns service names

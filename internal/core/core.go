@@ -50,7 +50,10 @@ func isInteractiveTerminal() bool {
 
 // NewUpdaterOptions creates new updater options
 func NewUpdaterOptions(composeFile string, showWarnings bool, nonInteractive bool) (*UpdaterOptions, error) {
-	composeOpts := compose.NewOptions(composeFile)
+	composeOpts, err := compose.NewOptions(composeFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compose options: %w", err)
+	}
 	
 	dockerClient, err := docker.NewClient()
 	if err != nil {
