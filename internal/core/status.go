@@ -16,17 +16,25 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 // statusEntry is one in-flight service shown on the live line
 type statusEntry struct {
+	id    int
 	name  string
 	phase string
+	// message is shown instead of "name: phase" when it is the only entry
+	message string
 }
 
 // composeStatusLine builds the live line for the in-flight entries. When the
 // entries don't fit in width columns it shows as many as fit followed by
 // "+N more". The result is always shorter than width so the terminal never
 // wraps it. A width of 0 or less means unknown and disables truncation.
+// A lone entry with a message is shown as that message, like a single spinner.
 func composeStatusLine(frame string, entries []statusEntry, width int) string {
 	if len(entries) == 0 {
 		return ""
+	}
+
+	if len(entries) == 1 && entries[0].message != "" {
+		return fitWidth(frame+" "+entries[0].message, width)
 	}
 
 	parts := make([]string, len(entries))
@@ -46,8 +54,16 @@ func composeStatusLine(frame string, entries []statusEntry, width int) string {
 	}
 
 	// Not even "+N more" fits: cut it down to the available columns
-	line := frame + " " + fmt.Sprintf("+%d more", len(entries))
-	return string([]rune(line)[:width-1])
+	return fitWidth(frame+" "+fmt.Sprintf("+%d more", len(entries)), width)
+}
+
+// fitWidth cuts line so it is shorter than width columns
+func fitWidth(line string, width int) string {
+	runes := []rune(line)
+	if width <= 0 || len(runes) < width {
+		return line
+	}
+	return string(runes[:width-1])
 }
 
 // StatusRenderer draws a single live status line shared by every in-flight
@@ -59,6 +75,7 @@ type StatusRenderer struct {
 	width    func() int
 	interval time.Duration
 	entries  []statusEntry
+	nextID   int
 	frame    int
 	drawn    bool
 	stop     chan struct{}
@@ -74,37 +91,44 @@ func NewStatusRenderer(out io.Writer, width func() int) *StatusRenderer {
 	}
 }
 
-// Add puts a service on the live line with its initial phase
-func (r *StatusRenderer) Add(name, phase string) {
+// Add puts a service on the live line with its initial phase and message,
+// and returns the id used to update it
+func (r *StatusRenderer) Add(name, phase, message string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.entries = append(r.entries, statusEntry{name: name, phase: phase})
+	r.nextID++
+	r.entries = append(r.entries, statusEntry{id: r.nextID, name: name, phase: phase, message: message})
 	if r.stop == nil {
 		r.stop = make(chan struct{})
 		go r.tick(r.stop)
 	}
 	r.draw()
+	return r.nextID
 }
 
-// SetPhase updates the phase shown for an in-flight service
-func (r *StatusRenderer) SetPhase(name, phase string) {
+// SetPhase updates the phase shown for an in-flight service. An empty message
+// keeps the previous one.
+func (r *StatusRenderer) SetPhase(id int, phase, message string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if i := r.index(name); i >= 0 {
+	if i := r.index(id); i >= 0 {
 		r.entries[i].phase = phase
+		if message != "" {
+			r.entries[i].message = message
+		}
 		r.draw()
 	}
 }
 
 // Finish removes a service from the live line. A non-empty message is printed
 // as a permanent line above the live line; an empty one prints nothing.
-func (r *StatusRenderer) Finish(name, message string) {
+func (r *StatusRenderer) Finish(id int, message string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if i := r.index(name); i >= 0 {
+	if i := r.index(id); i >= 0 {
 		r.entries = append(r.entries[:i], r.entries[i+1:]...)
 	}
 
@@ -130,6 +154,21 @@ func (r *StatusRenderer) PrintAbove(w io.Writer, s string) {
 	r.clear()
 	fmt.Fprint(w, s)
 	r.draw()
+}
+
+// Above returns a writer that writes to w through PrintAbove
+func (r *StatusRenderer) Above(w io.Writer) io.Writer {
+	return aboveWriter{r: r, w: w}
+}
+
+type aboveWriter struct {
+	r *StatusRenderer
+	w io.Writer
+}
+
+func (a aboveWriter) Write(p []byte) (int, error) {
+	a.r.PrintAbove(a.w, string(p))
+	return len(p), nil
 }
 
 func (r *StatusRenderer) tick(stop chan struct{}) {
@@ -166,9 +205,9 @@ func (r *StatusRenderer) running() bool {
 	return r.stop != nil
 }
 
-func (r *StatusRenderer) index(name string) int {
+func (r *StatusRenderer) index(id int) int {
 	for i, e := range r.entries {
-		if e.name == name {
+		if e.id == id {
 			return i
 		}
 	}

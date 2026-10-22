@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"sync"
 
@@ -14,7 +16,6 @@ import (
 // UpdaterOptions holds configuration for the updater
 type UpdaterOptions struct {
 	ShowWarnings   bool
-	UseSpinners    bool
 	ComposeOpts    *compose.Options
 	DockerClient   *docker.Client
 	// Status is the shared live status line; nil when not using spinners
@@ -65,12 +66,13 @@ func NewUpdaterOptions(composeFile string, showWarnings bool, nonInteractive boo
 	
 	opts := &UpdaterOptions{
 		ShowWarnings: showWarnings,
-		UseSpinners:  useSpinners,
 		ComposeOpts:  composeOpts,
 		DockerClient: dockerClient,
 	}
 	if useSpinners {
 		opts.Status = NewStatusRenderer(os.Stdout, terminalWidth)
+		// Route log output (e.g. compose debug lines) around the live line
+		log.SetOutput(opts.Status.Above(os.Stderr))
 	}
 
 	return opts, nil
@@ -96,6 +98,7 @@ func (opts *UpdaterOptions) Close() error {
 type SpinnerWrapper struct {
 	status      *StatusRenderer
 	serviceName string
+	id          int
 }
 
 // NewSpinnerWrapper creates a status handle for a service
@@ -116,15 +119,16 @@ func (opts *UpdaterOptions) NewSpinnerWrapper(serviceName string) *SpinnerWrappe
 // Start puts the service on the live status line
 func (sw *SpinnerWrapper) Start() {
 	if sw.status != nil {
-		sw.status.Add(sw.serviceName, "checking")
+		sw.id = sw.status.Add(sw.serviceName, "checking", fmt.Sprintf("Updating %s", sw.serviceName))
 	}
 }
 
 // SetPhase shows the service's current phase on the live status line. In
-// non-interactive mode it prints message instead, unless message is empty.
+// non-interactive mode it prints message instead. An empty message keeps the
+// previous one and prints nothing.
 func (sw *SpinnerWrapper) SetPhase(phase string, message string) {
 	if sw.status != nil {
-		sw.status.SetPhase(sw.serviceName, phase)
+		sw.status.SetPhase(sw.id, phase, message)
 	} else if message != "" {
 		fmt.Printf("⏳ %s\n", message)
 	}
@@ -133,7 +137,7 @@ func (sw *SpinnerWrapper) SetPhase(phase string, message string) {
 // Stop takes the service off the live status line and shows its final message
 func (sw *SpinnerWrapper) Stop(finalMessage string) {
 	if sw.status != nil {
-		sw.status.Finish(sw.serviceName, finalMessage)
+		sw.status.Finish(sw.id, finalMessage)
 	} else {
 		fmt.Printf("%s\n", finalMessage)
 	}
@@ -257,6 +261,10 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var errors []error
+	var errOut io.Writer = os.Stderr
+	if opts.Status != nil {
+		errOut = opts.Status.Above(os.Stderr)
+	}
 	
 	for _, serviceName := range serviceNames {
 		wg.Add(1)
@@ -271,12 +279,7 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 			if err := opts.UpdateContainer(name); err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Errorf("error updating %s: %w", name, err))
-				msg := fmt.Sprintf("Error updating %s: %v\n", name, err)
-				if opts.Status != nil {
-					opts.Status.PrintAbove(os.Stderr, msg)
-				} else {
-					fmt.Fprint(os.Stderr, msg)
-				}
+				fmt.Fprintf(errOut, "Error updating %s: %v\n", name, err)
 				mu.Unlock()
 			}
 		}(serviceName)

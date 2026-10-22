@@ -36,6 +36,18 @@ func TestComposeStatusLine(t *testing.T) {
 			want:    "⠋ app: pulling",
 		},
 		{
+			name:    "single entry with message looks like one spinner",
+			entries: []statusEntry{{name: "app", phase: "pulling", message: "Updating app"}},
+			width:   80,
+			want:    "⠋ Updating app",
+		},
+		{
+			name:    "single entry message is cut to width",
+			entries: []statusEntry{{name: "app", phase: "pulling", message: "Updating and restarting app"}},
+			width:   12,
+			want:    "⠋ Updating ",
+		},
+		{
 			name:    "all entries fit",
 			entries: entries,
 			width:   80,
@@ -114,22 +126,26 @@ func TestStatusRendererFinishedLines(t *testing.T) {
 	var buf bytes.Buffer
 	r := newTestRenderer(&buf)
 
-	r.Add("app", "checking")
-	r.Add("db", "checking")
-	r.Add("web", "checking")
-	r.SetPhase("db", "pulling")
+	app := r.Add("app", "checking", "Updating app")
+	db := r.Add("db", "checking", "Updating db")
+	web := r.Add("web", "checking", "Updating web")
+	r.SetPhase(db, "pulling", "")
 
 	if got := r.currentLine(); got != "⠋ app: checking | db: pulling | web: checking" {
 		t.Fatalf("live line = %q", got)
 	}
 
-	r.Finish("db", "✅ Updated db")
+	r.Finish(db, "✅ Updated db")
 	if got := r.currentLine(); got != "⠋ app: checking | web: checking" {
 		t.Fatalf("live line after db finished = %q", got)
 	}
 
-	r.Finish("web", "") // suppressed warning: drops off silently
-	r.Finish("app", "✅ app is already up to date")
+	r.Finish(web, "") // suppressed warning: drops off silently
+	r.SetPhase(app, "restarting", "Updating and restarting app")
+	if got := r.currentLine(); got != "⠋ Updating and restarting app" {
+		t.Fatalf("live line with one service left = %q", got)
+	}
+	r.Finish(app, "✅ app is already up to date")
 
 	want := []string{"✅ Updated db", "✅ app is already up to date"}
 	got := permanentLines(buf.String())
@@ -151,17 +167,36 @@ func TestStatusRendererPrintAbove(t *testing.T) {
 	var errBuf bytes.Buffer
 	r := newTestRenderer(&buf)
 
-	r.Add("app", "checking")
-	r.PrintAbove(&errBuf, "Error updating app: boom\n")
+	app := r.Add("app", "checking", "Updating app")
+	fmt.Fprint(r.Above(&errBuf), "Error updating app: boom\n")
 
 	if errBuf.String() != "Error updating app: boom\n" {
 		t.Errorf("stderr = %q", errBuf.String())
 	}
 	out := buf.String()
-	if !strings.HasSuffix(out, clearLine+"⠋ app: checking") {
+	if !strings.HasSuffix(out, clearLine+clearLine+"⠋ Updating app") {
 		t.Errorf("live line should be cleared then redrawn around stderr output, got %q", out)
 	}
-	r.Finish("app", "")
+	r.Finish(app, "")
+}
+
+func TestStatusRendererDuplicateNames(t *testing.T) {
+	var buf bytes.Buffer
+	r := newTestRenderer(&buf)
+
+	first := r.Add("app", "checking", "")
+	second := r.Add("app", "checking", "")
+	r.SetPhase(second, "pulling", "")
+
+	if got := r.currentLine(); got != "⠋ app: checking | app: pulling" {
+		t.Fatalf("live line = %q", got)
+	}
+
+	r.Finish(second, "second")
+	if got := r.currentLine(); got != "⠋ app: checking" {
+		t.Fatalf("live line after second finished = %q", got)
+	}
+	r.Finish(first, "first")
 }
 
 func TestStatusRendererConcurrent(t *testing.T) {
@@ -176,10 +211,10 @@ func TestStatusRendererConcurrent(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			name := fmt.Sprintf("svc%d", i)
-			r.Add(name, "checking")
-			r.SetPhase(name, "pulling")
+			id := r.Add(name, "checking", "Updating "+name)
+			r.SetPhase(id, "pulling", "")
 			time.Sleep(2 * time.Millisecond)
-			r.Finish(name, "✅ Updated "+name)
+			r.Finish(id, "✅ Updated "+name)
 		}(i)
 	}
 	wg.Wait()

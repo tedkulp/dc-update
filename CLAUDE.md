@@ -49,6 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core Logic (`internal/core/`)
 - `UpdateContainer()`: Main update logic with image comparison and spinner UI
 - `RestartContainer()`: Orchestrates stop/remove/start sequence
+- `StatusRenderer` (`status.go`): Goroutine-safe shared live status line for interactive mode; concurrent updates show on one line and finished services print permanent lines above it
 
 ## CLI Usage
 
@@ -68,7 +69,7 @@ The tool accepts container names as arguments and supports:
 - `make deps` or `go mod tidy`: Manage dependencies and clean up unused modules
 
 #### Testing & Quality
-- `make test` or `go test ./...`: Run all tests (when implemented)
+- `make test` or `go test ./...`: Run all tests
 - `make lint` or `go vet ./...`: Run Go's built-in static analyzer
 - `make fmt` or `go fmt ./...`: Format all Go code according to standards
 
@@ -93,7 +94,9 @@ dc-update/
 ├── internal/
 │   ├── compose/compose.go         # Docker Compose integration
 │   ├── docker/docker.go           # Docker API client
-│   └── core/core.go               # Business logic
+│   └── core/
+│       ├── core.go                # Business logic
+│       └── status.go              # Shared live status line renderer
 ├── .goreleaser.yaml               # Release configuration
 ├── .github/workflows/release.yml  # CI/CD pipeline
 └── Dockerfile                     # Container image build
