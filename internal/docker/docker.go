@@ -6,15 +6,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types"
-	imagetypes "github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	imagetypes "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 )
 
 // dockerAPI is the subset of the Docker client used by Client, allowing test fakes.
 type dockerAPI interface {
-	ImageList(ctx context.Context, options imagetypes.ListOptions) ([]imagetypes.Summary, error)
-	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ImageList(ctx context.Context, options client.ImageListOptions) (client.ImageListResult, error)
+	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
 	Close() error
 }
 
@@ -24,19 +24,19 @@ type Client struct {
 	cli            dockerAPI
 	ctx            context.Context
 	imageCache     map[string]*imagetypes.Summary
-	containerCache map[string]*types.ContainerJSON
+	containerCache map[string]*container.InspectResponse
 }
 
 // NewClient creates a new Docker API client
 func NewClient() (*Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Docker daemon - is Docker running? %w", err)
 	}
 
 	// Test the connection by pinging the daemon
 	ctx := context.Background()
-	_, err = cli.Ping(ctx)
+	_, err = cli.Ping(ctx, client.PingOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Docker daemon is not responding - check Docker daemon status: %w", err)
 	}
@@ -45,7 +45,7 @@ func NewClient() (*Client, error) {
 		cli:        cli,
 		ctx:        ctx,
 		imageCache: make(map[string]*imagetypes.Summary),
-		containerCache: make(map[string]*types.ContainerJSON),
+		containerCache: make(map[string]*container.InspectResponse),
 	}, nil
 }
 
@@ -70,10 +70,11 @@ func (c *Client) populateImageCache() error {
 		return nil
 	}
 
-	images, err := c.cli.ImageList(c.ctx, imagetypes.ListOptions{})
+	result, err := c.cli.ImageList(c.ctx, client.ImageListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list Docker images: %w", err)
 	}
+	images := result.Items
 
 	estimatedCapacity := len(images) * 2
 	c.imageCache = make(map[string]*imagetypes.Summary, estimatedCapacity)
@@ -91,7 +92,7 @@ func (c *Client) populateImageCache() error {
 }
 
 // getContainerInspection gets container info with caching
-func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSON, error) {
+func (c *Client) getContainerInspection(containerID string) (*container.InspectResponse, error) {
 	c.mu.RLock()
 	cached, exists := c.containerCache[containerID]
 	c.mu.RUnlock()
@@ -106,7 +107,7 @@ func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSO
 		return cached, nil
 	}
 
-	containerJSON, err := c.cli.ContainerInspect(c.ctx, containerID)
+	result, err := c.cli.ContainerInspect(c.ctx, containerID, client.ContainerInspectOptions{})
 	if err != nil {
 		if strings.Contains(err.Error(), "No such container") {
 			return nil, fmt.Errorf("container %s does not exist or is not running", containerID)
@@ -114,8 +115,9 @@ func (c *Client) getContainerInspection(containerID string) (*types.ContainerJSO
 		return nil, fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 
-	c.containerCache[containerID] = &containerJSON
-	return &containerJSON, nil
+	inspection := result.Container
+	c.containerCache[containerID] = &inspection
+	return &inspection, nil
 }
 
 // GetCurrentImageId inspects a container and returns its current image ID
@@ -200,12 +202,13 @@ func (c *Client) RefreshImageCache() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.containerCache = make(map[string]*types.ContainerJSON)
+	c.containerCache = make(map[string]*container.InspectResponse)
 
-	images, err := c.cli.ImageList(c.ctx, imagetypes.ListOptions{})
+	result, err := c.cli.ImageList(c.ctx, client.ImageListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list Docker images: %w", err)
 	}
+	images := result.Items
 
 	c.imageCache = make(map[string]*imagetypes.Summary, len(images)*2)
 	for _, image := range images {

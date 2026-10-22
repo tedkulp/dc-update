@@ -7,29 +7,30 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/docker/docker/api/types"
-	imagetypes "github.com/docker/docker/api/types/image"
+	"github.com/moby/moby/api/types/container"
+	imagetypes "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 )
 
 // fakeDockerAPI is a thread-safe in-process implementation of dockerAPI for testing.
 type fakeDockerAPI struct {
 	mu             sync.Mutex
 	images         []imagetypes.Summary
-	containers     map[string]types.ContainerJSON
+	containers     map[string]container.InspectResponse
 	imageListCalls atomic.Int64
 	inspectCalls   sync.Map // map[string]*atomic.Int64
 }
 
-func (f *fakeDockerAPI) ImageList(_ context.Context, _ imagetypes.ListOptions) ([]imagetypes.Summary, error) {
+func (f *fakeDockerAPI) ImageList(_ context.Context, _ client.ImageListOptions) (client.ImageListResult, error) {
 	f.imageListCalls.Add(1)
 	f.mu.Lock()
 	images := make([]imagetypes.Summary, len(f.images))
 	copy(images, f.images)
 	f.mu.Unlock()
-	return images, nil
+	return client.ImageListResult{Items: images}, nil
 }
 
-func (f *fakeDockerAPI) ContainerInspect(_ context.Context, containerID string) (types.ContainerJSON, error) {
+func (f *fakeDockerAPI) ContainerInspect(_ context.Context, containerID string, _ client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	counter, _ := f.inspectCalls.LoadOrStore(containerID, new(atomic.Int64))
 	counter.(*atomic.Int64).Add(1)
 
@@ -37,9 +38,9 @@ func (f *fakeDockerAPI) ContainerInspect(_ context.Context, containerID string) 
 	c, ok := f.containers[containerID]
 	f.mu.Unlock()
 	if !ok {
-		return types.ContainerJSON{}, fmt.Errorf("No such container: %s", containerID)
+		return client.ContainerInspectResult{}, fmt.Errorf("No such container: %s", containerID)
 	}
-	return c, nil
+	return client.ContainerInspectResult{Container: c}, nil
 }
 
 func (f *fakeDockerAPI) Close() error { return nil }
@@ -58,7 +59,7 @@ func newTestClient(api *fakeDockerAPI) *Client {
 		cli:            api,
 		ctx:            context.Background(),
 		imageCache:     make(map[string]*imagetypes.Summary),
-		containerCache: make(map[string]*types.ContainerJSON),
+		containerCache: make(map[string]*container.InspectResponse),
 	}
 }
 
@@ -110,12 +111,10 @@ func TestGetImageIdConcurrent(t *testing.T) {
 func TestGetCurrentImageIdConcurrent(t *testing.T) {
 	containerID := "abc123"
 	fake := &fakeDockerAPI{
-		containers: map[string]types.ContainerJSON{
+		containers: map[string]container.InspectResponse{
 			containerID: {
-				ContainerJSONBase: &types.ContainerJSONBase{
-					ID:    containerID,
-					Image: "sha256:nginxdeadbeef",
-				},
+				ID:    containerID,
+				Image: "sha256:nginxdeadbeef",
 			},
 		},
 	}
@@ -183,17 +182,15 @@ func TestRefreshImageCacheConcurrent(t *testing.T) {
 }
 
 // TestRefreshClearsContainerCache verifies that RefreshImageCache also invalidates
-// the container cache so stale ContainerJSON entries don't survive a docker pull.
+// the container cache so stale InspectResponse entries don't survive a docker pull.
 func TestRefreshClearsContainerCache(t *testing.T) {
 	containerID := "abc123"
 	fake := &fakeDockerAPI{
 		images: makeImages("nginx:latest"),
-		containers: map[string]types.ContainerJSON{
+		containers: map[string]container.InspectResponse{
 			containerID: {
-				ContainerJSONBase: &types.ContainerJSONBase{
-					ID:    containerID,
-					Image: "sha256:oldimage",
-				},
+				ID:    containerID,
+				Image: "sha256:oldimage",
 			},
 		},
 	}
@@ -209,11 +206,9 @@ func TestRefreshClearsContainerCache(t *testing.T) {
 
 	// Simulate a docker pull: update the fake to return a new image.
 	fake.mu.Lock()
-	fake.containers[containerID] = types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{
-			ID:    containerID,
-			Image: "sha256:newimage",
-		},
+	fake.containers[containerID] = container.InspectResponse{
+		ID:    containerID,
+		Image: "sha256:newimage",
 	}
 	fake.mu.Unlock()
 
