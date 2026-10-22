@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 
 	"dc-update/internal/compose"
 	"dc-update/internal/docker"
 
-	"github.com/briandowns/spinner"
 	"golang.org/x/term"
 )
 
@@ -19,6 +17,8 @@ type UpdaterOptions struct {
 	UseSpinners    bool
 	ComposeOpts    *compose.Options
 	DockerClient   *docker.Client
+	// Status is the shared live status line; nil when not using spinners
+	Status         *StatusRenderer
 }
 
 // isInteractiveTerminal checks if we're running in an interactive terminal
@@ -63,12 +63,26 @@ func NewUpdaterOptions(composeFile string, showWarnings bool, nonInteractive boo
 	// Determine spinner usage: disable if explicitly non-interactive or if terminal is non-interactive
 	useSpinners := !nonInteractive && isInteractiveTerminal()
 	
-	return &UpdaterOptions{
+	opts := &UpdaterOptions{
 		ShowWarnings: showWarnings,
 		UseSpinners:  useSpinners,
 		ComposeOpts:  composeOpts,
 		DockerClient: dockerClient,
-	}, nil
+	}
+	if useSpinners {
+		opts.Status = NewStatusRenderer(os.Stdout, terminalWidth)
+	}
+
+	return opts, nil
+}
+
+// terminalWidth returns the width of the terminal on stdout, or 0 if unknown
+func terminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+	return width
 }
 
 // Close closes the Docker client connection
@@ -76,52 +90,50 @@ func (opts *UpdaterOptions) Close() error {
 	return opts.DockerClient.Close()
 }
 
-// SpinnerWrapper wraps spinner functionality with interactive terminal detection
+// SpinnerWrapper is the per-service status handle. In interactive mode it
+// reports into the updater's shared StatusRenderer; otherwise it prints plain
+// lines.
 type SpinnerWrapper struct {
-	spinner    *spinner.Spinner
-	useSpinner bool
-	prefix     string
+	status      *StatusRenderer
+	serviceName string
 }
 
-// NewSpinnerWrapper creates a new spinner wrapper
-func (opts *UpdaterOptions) NewSpinnerWrapper(message string) *SpinnerWrapper {
+// NewSpinnerWrapper creates a status handle for a service
+func (opts *UpdaterOptions) NewSpinnerWrapper(serviceName string) *SpinnerWrapper {
 	sw := &SpinnerWrapper{
-		useSpinner: opts.UseSpinners,
-		prefix:     message,
+		status:      opts.Status,
+		serviceName: serviceName,
 	}
-	
-	if sw.useSpinner {
-		sw.spinner = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		sw.spinner.Suffix = fmt.Sprintf(" %s", message)
-	} else {
+
+	if sw.status == nil {
 		// For non-interactive environments, just print the message
-		fmt.Printf("⏳ %s\n", message)
+		fmt.Printf("⏳ Updating %s\n", serviceName)
 	}
-	
+
 	return sw
 }
 
-// Start starts the spinner or prints a message
+// Start puts the service on the live status line
 func (sw *SpinnerWrapper) Start() {
-	if sw.useSpinner && sw.spinner != nil {
-		sw.spinner.Start()
+	if sw.status != nil {
+		sw.status.Add(sw.serviceName, "checking")
 	}
 }
 
-// UpdateSuffix updates the spinner message
-func (sw *SpinnerWrapper) UpdateSuffix(message string) {
-	if sw.useSpinner && sw.spinner != nil {
-		sw.spinner.Suffix = fmt.Sprintf(" %s", message)
-	} else {
+// SetPhase shows the service's current phase on the live status line. In
+// non-interactive mode it prints message instead, unless message is empty.
+func (sw *SpinnerWrapper) SetPhase(phase string, message string) {
+	if sw.status != nil {
+		sw.status.SetPhase(sw.serviceName, phase)
+	} else if message != "" {
 		fmt.Printf("⏳ %s\n", message)
 	}
 }
 
-// Stop stops the spinner and shows final message
+// Stop takes the service off the live status line and shows its final message
 func (sw *SpinnerWrapper) Stop(finalMessage string) {
-	if sw.useSpinner && sw.spinner != nil {
-		sw.spinner.FinalMSG = fmt.Sprintf("%s\n", finalMessage)
-		sw.spinner.Stop()
+	if sw.status != nil {
+		sw.status.Finish(sw.serviceName, finalMessage)
 	} else {
 		fmt.Printf("%s\n", finalMessage)
 	}
@@ -155,7 +167,7 @@ func (opts *UpdaterOptions) RestartContainer(serviceName string) error {
 
 // UpdateContainer checks if a container needs updating and updates if necessary
 func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
-	sw := opts.NewSpinnerWrapper(fmt.Sprintf("Updating %s", serviceName))
+	sw := opts.NewSpinnerWrapper(serviceName)
 	sw.Start()
 	
 	// First validate that the service exists in the compose file
@@ -191,6 +203,7 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 	}
 	
 	// Pull the expected image to ensure we have the latest version
+	sw.SetPhase("pulling", "")
 	if err := opts.ComposeOpts.PullContainer(serviceName); err != nil {
 		sw.Stop(fmt.Sprintf("❌ Failed to pull image for %s", serviceName))
 		return fmt.Errorf("failed to pull image for %s: %w", serviceName, err)
@@ -220,7 +233,7 @@ func (opts *UpdaterOptions) UpdateContainer(serviceName string) error {
 	}
 
 	if currentImageID != expectedImageID {
-		sw.UpdateSuffix(fmt.Sprintf("Updating and restarting %s", serviceName))
+		sw.SetPhase("restarting", fmt.Sprintf("Updating and restarting %s", serviceName))
 		
 		if err := opts.RestartContainer(serviceName); err != nil {
 			sw.Stop(fmt.Sprintf("❌ Failed to restart %s", serviceName))
@@ -258,7 +271,12 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 			if err := opts.UpdateContainer(name); err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Errorf("error updating %s: %w", name, err))
-				fmt.Fprintf(os.Stderr, "Error updating %s: %v\n", name, err)
+				msg := fmt.Sprintf("Error updating %s: %v\n", name, err)
+				if opts.Status != nil {
+					opts.Status.PrintAbove(os.Stderr, msg)
+				} else {
+					fmt.Fprint(os.Stderr, msg)
+				}
 				mu.Unlock()
 			}
 		}(serviceName)

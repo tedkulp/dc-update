@@ -1,0 +1,201 @@
+package core
+
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+	"unicode/utf8"
+)
+
+func TestComposeStatusLine(t *testing.T) {
+	entries := []statusEntry{
+		{name: "app", phase: "pulling"},
+		{name: "db", phase: "checking"},
+		{name: "web", phase: "restarting"},
+	}
+
+	tests := []struct {
+		name    string
+		entries []statusEntry
+		width   int
+		want    string
+	}{
+		{
+			name:    "no entries",
+			entries: nil,
+			width:   80,
+			want:    "",
+		},
+		{
+			name:    "single entry",
+			entries: entries[:1],
+			width:   80,
+			want:    "⠋ app: pulling",
+		},
+		{
+			name:    "all entries fit",
+			entries: entries,
+			width:   80,
+			want:    "⠋ app: pulling | db: checking | web: restarting",
+		},
+		{
+			name:    "unknown width does not truncate",
+			entries: entries,
+			width:   0,
+			want:    "⠋ app: pulling | db: checking | web: restarting",
+		},
+		{
+			name:    "overflow shows +N more",
+			entries: entries,
+			width:   40,
+			want:    "⠋ app: pulling | db: checking | +1 more",
+		},
+		{
+			name:    "overflow of all but one",
+			entries: entries,
+			width:   30,
+			want:    "⠋ app: pulling | +2 more",
+		},
+		{
+			name:    "nothing fits but the counter",
+			entries: entries,
+			width:   16,
+			want:    "⠋ +3 more",
+		},
+		{
+			name:    "even the counter does not fit",
+			entries: entries,
+			width:   6,
+			want:    "⠋ +3 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := composeStatusLine("⠋", tt.entries, tt.width)
+			if got != tt.want {
+				t.Errorf("composeStatusLine() = %q, want %q", got, tt.want)
+			}
+			if tt.width > 0 && utf8.RuneCountInString(got) >= tt.width {
+				t.Errorf("line %q is %d columns, must stay under width %d to avoid wrapping",
+					got, utf8.RuneCountInString(got), tt.width)
+			}
+		})
+	}
+}
+
+// permanentLines extracts the lines that end in a newline, i.e. the
+// permanent output, from the raw terminal stream.
+func permanentLines(out string) []string {
+	var lines []string
+	for _, chunk := range strings.SplitAfter(out, "\n") {
+		if !strings.HasSuffix(chunk, "\n") {
+			continue
+		}
+		chunk = strings.TrimSuffix(chunk, "\n")
+		if i := strings.LastIndex(chunk, clearLine); i >= 0 {
+			chunk = chunk[i+len(clearLine):]
+		}
+		lines = append(lines, chunk)
+	}
+	return lines
+}
+
+func newTestRenderer(buf *bytes.Buffer) *StatusRenderer {
+	r := NewStatusRenderer(buf, func() int { return 80 })
+	r.interval = time.Hour // keep the ticker out of the way
+	return r
+}
+
+func TestStatusRendererFinishedLines(t *testing.T) {
+	var buf bytes.Buffer
+	r := newTestRenderer(&buf)
+
+	r.Add("app", "checking")
+	r.Add("db", "checking")
+	r.Add("web", "checking")
+	r.SetPhase("db", "pulling")
+
+	if got := r.currentLine(); got != "⠋ app: checking | db: pulling | web: checking" {
+		t.Fatalf("live line = %q", got)
+	}
+
+	r.Finish("db", "✅ Updated db")
+	if got := r.currentLine(); got != "⠋ app: checking | web: checking" {
+		t.Fatalf("live line after db finished = %q", got)
+	}
+
+	r.Finish("web", "") // suppressed warning: drops off silently
+	r.Finish("app", "✅ app is already up to date")
+
+	want := []string{"✅ Updated db", "✅ app is already up to date"}
+	got := permanentLines(buf.String())
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("permanent lines = %q, want %q", got, want)
+	}
+
+	out := buf.String()
+	if tail := out[strings.LastIndex(out, "\n")+1:]; tail != "" && tail != clearLine {
+		t.Errorf("live line should be gone once all services finish, got trailing %q", tail)
+	}
+	if r.running() {
+		t.Errorf("ticker should stop once every service is finished")
+	}
+}
+
+func TestStatusRendererPrintAbove(t *testing.T) {
+	var buf bytes.Buffer
+	var errBuf bytes.Buffer
+	r := newTestRenderer(&buf)
+
+	r.Add("app", "checking")
+	r.PrintAbove(&errBuf, "Error updating app: boom\n")
+
+	if errBuf.String() != "Error updating app: boom\n" {
+		t.Errorf("stderr = %q", errBuf.String())
+	}
+	out := buf.String()
+	if !strings.HasSuffix(out, clearLine+"⠋ app: checking") {
+		t.Errorf("live line should be cleared then redrawn around stderr output, got %q", out)
+	}
+	r.Finish("app", "")
+}
+
+func TestStatusRendererConcurrent(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewStatusRenderer(&buf, func() int { return 60 })
+	r.interval = time.Millisecond
+
+	const n = 20
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			name := fmt.Sprintf("svc%d", i)
+			r.Add(name, "checking")
+			r.SetPhase(name, "pulling")
+			time.Sleep(2 * time.Millisecond)
+			r.Finish(name, "✅ Updated "+name)
+		}(i)
+	}
+	wg.Wait()
+
+	lines := permanentLines(buf.String())
+	if len(lines) != n {
+		t.Fatalf("got %d permanent lines, want %d: %q", len(lines), n, lines)
+	}
+	seen := map[string]bool{}
+	for _, l := range lines {
+		if seen[l] {
+			t.Errorf("duplicate permanent line %q", l)
+		}
+		seen[l] = true
+	}
+	if r.running() {
+		t.Errorf("ticker should stop once every service is finished")
+	}
+}

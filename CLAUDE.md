@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Dependencies**: 
   - `github.com/moby/moby/client` and `github.com/moby/moby/api` for Docker API access
   - `github.com/urfave/cli/v2` for CLI parsing and flags
-  - `github.com/briandowns/spinner` for terminal spinners  
+  - Custom shared status line renderer (`internal/core/status.go`) for terminal spinners
   - `os/exec` for docker-compose command execution
 - **Core workflow**: 
   1. Get expected image name from docker-compose file for each service
