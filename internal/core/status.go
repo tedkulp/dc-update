@@ -23,17 +23,19 @@ type statusEntry struct {
 	message string
 }
 
-// composeStatusLine builds the live line for the in-flight entries. When the
-// entries don't fit in width columns it shows as many as fit followed by
-// "+N more". The result is always shorter than width so the terminal never
-// wraps it. A width of 0 or less means unknown and disables truncation.
-// A lone entry with a message is shown as that message, like a single spinner.
-func composeStatusLine(frame string, entries []statusEntry, width int) string {
+// composeStatusLine builds the live line for the in-flight entries, followed by
+// "+N waiting" for services queued behind them. When the entries don't fit in
+// width columns it shows as many as fit followed by "+N more", which also
+// counts the waiting ones. The result is always shorter than width so the
+// terminal never wraps it. A width of 0 or less means unknown and disables
+// truncation. A lone entry with a message and nothing waiting is shown as that
+// message, like a single spinner.
+func composeStatusLine(frame string, entries []statusEntry, waiting int, width int) string {
 	if len(entries) == 0 {
 		return ""
 	}
 
-	if len(entries) == 1 && entries[0].message != "" {
+	if len(entries) == 1 && waiting == 0 && entries[0].message != "" {
 		return fitWidth(frame+" "+entries[0].message, width)
 	}
 
@@ -43,9 +45,11 @@ func composeStatusLine(frame string, entries []statusEntry, width int) string {
 	}
 
 	for shown := len(entries); shown >= 0; shown-- {
-		visible := parts[:shown]
+		visible := parts[:shown:shown]
 		if hidden := len(entries) - shown; hidden > 0 {
-			visible = append(visible[:shown:shown], fmt.Sprintf("+%d more", hidden))
+			visible = append(visible, fmt.Sprintf("+%d more", hidden+waiting))
+		} else if waiting > 0 {
+			visible = append(visible, fmt.Sprintf("+%d waiting", waiting))
 		}
 		line := frame + " " + strings.Join(visible, " | ")
 		if width <= 0 || utf8.RuneCountInString(line) < width {
@@ -54,7 +58,7 @@ func composeStatusLine(frame string, entries []statusEntry, width int) string {
 	}
 
 	// Not even "+N more" fits: cut it down to the available columns
-	return fitWidth(frame+" "+fmt.Sprintf("+%d more", len(entries)), width)
+	return fitWidth(frame+" "+fmt.Sprintf("+%d more", len(entries)+waiting), width)
 }
 
 // fitWidth cuts line so it is shorter than width columns
@@ -75,6 +79,7 @@ type StatusRenderer struct {
 	width    func() int
 	interval time.Duration
 	entries  []statusEntry
+	waiting  int
 	nextID   int
 	frame    int
 	drawn    bool
@@ -105,6 +110,15 @@ func (r *StatusRenderer) Add(name, phase, message string) int {
 	}
 	r.draw()
 	return r.nextID
+}
+
+// AddWaiting changes the number of services queued behind the in-flight ones
+func (r *StatusRenderer) AddWaiting(delta int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.waiting += delta
+	r.draw()
 }
 
 // SetPhase updates the phase shown for an in-flight service. An empty message
@@ -195,7 +209,7 @@ func (r *StatusRenderer) tick(stop chan struct{}) {
 // currentLine returns the live line as it would be drawn now. Callers hold r.mu
 // or are single-threaded tests.
 func (r *StatusRenderer) currentLine() string {
-	return composeStatusLine(spinnerFrames[r.frame], r.entries, r.width())
+	return composeStatusLine(spinnerFrames[r.frame], r.entries, r.waiting, r.width())
 }
 
 // running reports whether the spinner ticker is active

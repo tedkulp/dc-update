@@ -290,6 +290,10 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 		errOut = opts.Status.Above(os.Stderr)
 	}
 	
+	if opts.Status != nil {
+		opts.Status.AddWaiting(len(serviceNames))
+	}
+
 	for _, serviceName := range serviceNames {
 		wg.Add(1)
 		go func(name string) {
@@ -298,6 +302,9 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 			// Acquire semaphore
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
+			if opts.Status != nil {
+				opts.Status.AddWaiting(-1)
+			}
 			
 			// Update the container
 			if err := opts.UpdateContainer(name); err != nil {

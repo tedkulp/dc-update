@@ -20,6 +20,7 @@ func TestComposeStatusLine(t *testing.T) {
 	tests := []struct {
 		name    string
 		entries []statusEntry
+		waiting int
 		width   int
 		want    string
 	}{
@@ -72,6 +73,27 @@ func TestComposeStatusLine(t *testing.T) {
 			want:    "⠋ app: pulling | +2 more",
 		},
 		{
+			name:    "queued services show as waiting",
+			entries: entries,
+			waiting: 12,
+			width:   80,
+			want:    "⠋ app: pulling | db: checking | web: restarting | +12 waiting",
+		},
+		{
+			name:    "waiting merges into +N more on overflow",
+			entries: entries,
+			waiting: 12,
+			width:   50,
+			want:    "⠋ app: pulling | db: checking | +13 more",
+		},
+		{
+			name:    "lone entry with a queue lists the entry, not its message",
+			entries: []statusEntry{{name: "app", phase: "pulling", message: "Updating app"}},
+			waiting: 2,
+			width:   80,
+			want:    "⠋ app: pulling | +2 waiting",
+		},
+		{
 			name:    "nothing fits but the counter",
 			entries: entries,
 			width:   16,
@@ -87,7 +109,7 @@ func TestComposeStatusLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := composeStatusLine("⠋", tt.entries, tt.width)
+			got := composeStatusLine("⠋", tt.entries, tt.waiting, tt.width)
 			if got != tt.want {
 				t.Errorf("composeStatusLine() = %q, want %q", got, tt.want)
 			}
@@ -176,6 +198,20 @@ func TestStatusRendererPrintAbove(t *testing.T) {
 	out := buf.String()
 	if !strings.HasSuffix(out, clearLine+clearLine+"⠋ Updating app") {
 		t.Errorf("live line should be cleared then redrawn around stderr output, got %q", out)
+	}
+	r.Finish(app, "")
+}
+
+func TestStatusRendererWaiting(t *testing.T) {
+	var buf bytes.Buffer
+	r := newTestRenderer(&buf)
+
+	r.AddWaiting(3)
+	r.AddWaiting(-1)
+	app := r.Add("app", "checking", "Updating app")
+
+	if got := r.currentLine(); got != "⠋ app: checking | +2 waiting" {
+		t.Fatalf("live line = %q", got)
 	}
 	r.Finish(app, "")
 }
