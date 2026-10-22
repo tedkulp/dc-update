@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"dc-update/internal/compose"
 	"dc-update/internal/docker"
@@ -20,6 +21,8 @@ type UpdaterOptions struct {
 	DockerClient   *docker.Client
 	// Status is the shared live status line; nil when not using spinners
 	Status         *StatusRenderer
+	// skipped counts services whose warnings were hidden by ShowWarnings
+	skipped        atomic.Int32
 }
 
 // isInteractiveTerminal checks if we're running in an interactive terminal
@@ -143,12 +146,33 @@ func (sw *SpinnerWrapper) Stop(finalMessage string) {
 	}
 }
 
-// warnIfEnabled shows warnings based on the ShowWarnings flag
+// Drop takes the service off the live status line without a final message
+func (sw *SpinnerWrapper) Drop() {
+	if sw.status != nil {
+		sw.status.Finish(sw.id, "")
+	}
+}
+
+// warnIfEnabled shows warnings based on the ShowWarnings flag. Hidden warnings
+// are counted and reported as one summary line at the end.
 func (opts *UpdaterOptions) warnIfEnabled(sw *SpinnerWrapper, message string) {
 	if opts.ShowWarnings {
 		sw.Stop(fmt.Sprintf("⚠️  %s", message))
 	} else {
-		sw.Stop("") // Stop without message
+		opts.skipped.Add(1)
+		sw.Drop()
+	}
+}
+
+// skippedSummary describes how many services had their warnings hidden
+func skippedSummary(count int) string {
+	switch count {
+	case 0:
+		return ""
+	case 1:
+		return "⚠️  1 service skipped (use --show-warnings for details)"
+	default:
+		return fmt.Sprintf("⚠️  %d services skipped (use --show-warnings for details)", count)
 	}
 }
 
@@ -287,6 +311,10 @@ func (opts *UpdaterOptions) UpdateContainersConcurrently(serviceNames []string) 
 	
 	// Wait for all goroutines to complete
 	wg.Wait()
+
+	if summary := skippedSummary(int(opts.skipped.Swap(0))); summary != "" {
+		fmt.Println(summary)
+	}
 	
 	// Return the first error if any occurred
 	if len(errors) > 0 {
